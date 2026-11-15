@@ -1,5 +1,10 @@
 # XmasLights 2.9.2 — RGB con StrobeLights actualizado y Paper 26.3
 
+Actualización de compatibilidad: **usar StrobeLights 0.10.44 en 26.3**. El contrato
+se incorporó en 0.10.43, pero el cliente eliminaba su modelo puntual al hornearlo.
+0.10.44 corrige el modelo y verifica los colores en Minecraft vanilla real;
+XmasLights 2.9.2 sigue siendo la misma versión compatible.
+
 El aviso que pedía StrobeLights 0.10.38 aparecía incluso con 0.10.42 porque el
 bridge aceptaba solo 0.10.38..0.10.41. La versión nueva valida el contrato real
 del pack de la versión de Minecraft, el item model y su tinte. Una futura versión
@@ -7,8 +12,9 @@ con la misma ABI no necesita modificar una lista; un pack sin ABI sigue rechazad
 El antiguo ajuste `allow-untested-version` queda obsoleto, sin evitar la validación.
 Los avisos de incompatibilidad indican ahora el requisito correcto para 26.3.
 
-Además hay que instalar **StrobeLights 0.10.43**: su renderer 26.3 incorpora los
-128 slots de integración que faltaban. Conservar 0.10.42 y actualizar solo
+Además hay que instalar **StrobeLights 0.10.44**: conserva los 128 slots de
+integración introducidos en 0.10.43 y corrige el horneado del modelo. Conservar
+0.10.42 y actualizar solo
 XmasLights no resuelve la iluminación. TRP no es necesario y su perfil gráfico
 no interviene en la negociación. No se crean strobes, círculos ni TextDisplay;
 se mantienen los ItemDisplay técnicos y los shaders de StrobeLights.

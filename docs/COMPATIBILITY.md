@@ -2,13 +2,18 @@
 
 2.9.2 conserva las familias y sus packs. Cambia la negociación RGB para aceptar
 un StrobeLights compatible por su contrato, sin una lista fija de versiones.
-**Para 26.3 usar StrobeLights 0.10.43 y XmasLights 2.9.2**, actualizando ambos JAR
+**Para 26.3 usar StrobeLights 0.10.44 y XmasLights 2.9.2**, actualizando ambos JAR
 y aceptando el pack nuevo. Las 232 pruebas Java y la prueba conjunta de Paper
 26.3 están descritas en [la entrega 2.9.2](RELEASE_2_9_2.md).
 
 La matriz completa de doce servidores descrita a continuación es evidencia de
 2.9.1; no se ha repetido íntegramente para 2.9.2. La prueba conjunta nueva verifica
 el pack y las entidades en Paper 26.3; los shaders se ejecutan aparte en GPU.
+
+Desde StrobeLights 0.10.44 se ha verificado además el color de fuentes nativas
+en un cliente vanilla 26.3 real. Esa versión corrige un modelo que quedaba sin
+caras durante el horneado, también usado por las fuentes de XmasLights.
+El protocolo de integración de 0.10.43 no cambia; actualizar el pack es necesario.
 
 Se distribuyen cuatro JAR por rama: 1.21.X, 26.1.X, 26.2.X y 26.3.X.
 Cada uno incluye los packs de todos sus parches comprobados. La implementación usa la API

@@ -2,9 +2,14 @@
 
 Esta versión corrige el rechazo de StrobeLights actualizado. El bridge comprueba
 el contrato del pack real en lugar de limitarse a una lista de versiones del
-plugin. Para RGB en **26.3 se necesitan StrobeLights 0.10.43 y su nuevo pack**;
+plugin. Para RGB en **26.3 usar StrobeLights 0.10.44 y su nuevo pack**;
 hay que actualizar ambos JAR. El ajuste `allow-untested-version` queda obsoleto
 y no permite saltarse la comprobación del protocolo.
+
+StrobeLights 0.10.44 corrige un fallo posterior de horneado del modelo 26.3:
+el cliente descartaba la geometría puntual aunque aceptase el pack 0.10.43.
+La corrección se ha comprobado en el cliente vanilla real. XmasLights 2.9.2
+conserva su ABI y no necesita otro cambio de JAR por ese ajuste del modelo.
 
 Esta versión **retira el renderer alternativo introducido en 2.9.0**. La iluminación
 RGB vuelve exclusivamente al render 3D de **StrobeLights**, con su modelo técnico
