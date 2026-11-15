@@ -1,0 +1,899 @@
+# XmasLights - light type definitions | UTF-8
+# Reload with /xl reload. Loaded strings rebuild gradually; hidden strings stay hidden.
+# Missing built-in types are added with a dated backup. Existing values and
+# your own types are preserved. Use a unique lowercase ID (letters, numbers, - or _).
+# IDs are used in commands and saved data: do not rename IDs of placed lights.
+types-version: 8
+#
+# name-key: translation key in lang/<code>.yml; built-in names are localized.
+# name: fallback literal name, with & colors. Editing it overrides the built-in
+# translation. For your own type use name-key without name for a translated name,
+# or set custom: true and name: "..." to always use your literal custom name.
+# style: hanging or wall (wall snap/orientation). Pine outlines also have sag.
+# wire: whether to display wire (default: true for hanging, false for wall).
+# item: material of the kit (default: PLAYER_HEAD with heads, otherwise STRING).
+# size: bulb size in blocks (0.05..4; default 0.2).
+# spacing: bulb distance in blocks (0.1..16; default from config.yml).
+# sag: optional sag factor (0..1); omitted uses config.yml. Applies to wall outlines too; sag: 0 is deliberately straight.
+# chain: vertical drop to each socket (0..4; default 0); works on walls too.
+# light-level: real light intensity (0..15; omitted uses config.yml).
+# blocks: Minecraft block data strings, in alternating order along the string.
+# heads: texture hash, textures.minecraft.net URL or base64 texture property.
+# Only textures.minecraft.net is accepted; no arbitrary hosts or profile lookups.
+# If heads is nonempty, it is used instead of blocks.
+# rgb: optional list of "#RRGGBB" colors, in physical bulb order. Without it,
+# block colors and the built-in head types are inferred automatically.
+# model: classic, snowy or rgb for a batched pine garland; bulb for a rounded lamp, cube for a compact Minecraft-style lamp.
+# model-pack.enabled: false uses a vanilla representation with the same entity budget.
+# Pines use two displays per module: unlit foliage and eight independently tinted LEDs.
+# The bulb model uses one display per bulb. All emitters share their module's effect.
+# config.yml limits cap the number of bulbs/entities for every type.
+# To remove a built-in type without it returning, define it as a custom replacement
+# instead. Do not delete a type while placed strings still refer to it.
+#
+types:
+  # ---- Pine garlands with natural sag; matching straight wall-* types below ----
+  garland-classic:
+    name-key: names.garland-classic
+    name: "&6Classic Pine Garland"
+    model: classic
+    style: wall
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFD38A"]
+  garland-snowy:
+    name-key: names.garland-snowy
+    name: "&fSnowy Pine Garland"
+    model: snowy
+    style: wall
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFE6BA"]
+  garland-rgb:
+    name-key: names.garland-rgb
+    name: "&aFestive &cRGB &6Garland"
+    model: rgb
+    style: wall
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 11
+    rgb: ["#FF4141", "#60E47C", "#FFD557", "#609BFF"]
+  garland-draped:
+    name-key: names.garland-draped
+    name: "&6Draped Pine Garland"
+    model: classic
+    style: hanging
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    sag: 0.20
+    light-level: 10
+    rgb: ["#FFD38A"]
+  # ---- Hanging ----
+  warm:
+    name-key: names.warm
+    name: "&6Warm Lights"
+    model: cube
+    style: hanging
+    item: STRING
+    size: 0.3
+    chain: 0.18
+    spacing: 1.25
+    blocks: ["minecraft:yellow_concrete"]
+    rgb: ["#FFD38A"]
+  multicolor:
+    name-key: names.multicolor
+    name: "&aM&du&el&6t&bi&fcolor Lights"
+    model: cube
+    style: hanging
+    item: STRING
+    size: 0.3
+    chain: 0.18
+    spacing: 1.25
+    blocks: ["minecraft:red_concrete", "minecraft:light_blue_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete", "minecraft:magenta_concrete"]
+    rgb: ["#FF3030", "#60BFFF", "#FFE12B", "#38E658", "#E85DDA"]
+  red-white:
+    name-key: names.red-white
+    name: "&cRed &fand White"
+    model: cube
+    style: hanging
+    item: STRING
+    size: 0.3
+    chain: 0.18
+    spacing: 1.25
+    blocks: ["minecraft:red_concrete", "minecraft:white_concrete"]
+    rgb: ["#FF3030", "#FFF3DB"]
+  rainbow:
+    name-key: names.rainbow
+    name: "&cR&6a&ei&an&bb&9o&5w"
+    model: cube
+    style: hanging
+    item: STRING
+    size: 0.3
+    chain: 0.18
+    spacing: 1.25
+    blocks: ["minecraft:red_concrete", "minecraft:orange_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete", "minecraft:green_concrete", "minecraft:cyan_concrete", "minecraft:light_blue_concrete", "minecraft:blue_concrete", "minecraft:purple_concrete", "minecraft:magenta_concrete", "minecraft:pink_concrete"]
+    rgb: ["#FF3030", "#FF871F", "#FFE12B", "#8DE637", "#38C65A", "#27C9B8", "#60BFFF", "#2878FF", "#9054F4", "#E85DDA", "#FFA1C1"]
+  christmas:
+    name-key: names.christmas
+    name: "&cChristmas &aLights"
+    style: hanging
+    model: bulb
+    item: STRING
+    size: 0.26
+    chain: 0.18
+    spacing: 1.25
+    blocks: ["minecraft:red_concrete", "minecraft:lime_concrete", "minecraft:yellow_concrete"]
+    rgb: ["#FF3030", "#38E658", "#FFD64D"]
+  red:
+    name-key: names.red
+    name: "&cRed Lights"
+    style: hanging
+    model: bulb
+    item: RED_DYE
+    size: 0.26
+    chain: 0.18
+    spacing: 1.25
+    blocks: ["minecraft:red_concrete"]
+    rgb: ["#FF3030"]
+  green:
+    name-key: names.green
+    name: "&aGreen Lights"
+    style: hanging
+    model: bulb
+    item: LIME_DYE
+    size: 0.26
+    chain: 0.18
+    spacing: 1.25
+    blocks: ["minecraft:lime_concrete"]
+    rgb: ["#38E658"]
+  blue:
+    name-key: names.blue
+    name: "&9Blue Lights"
+    style: hanging
+    model: bulb
+    item: BLUE_DYE
+    size: 0.26
+    chain: 0.18
+    spacing: 1.25
+    blocks: ["minecraft:blue_concrete"]
+    rgb: ["#2878FF"]
+  yellow:
+    name-key: names.yellow
+    name: "&eYellow Lights"
+    style: hanging
+    model: bulb
+    item: YELLOW_DYE
+    size: 0.26
+    chain: 0.18
+    spacing: 1.25
+    blocks: ["minecraft:yellow_concrete"]
+    rgb: ["#FFE12B"]
+  orange:
+    name-key: names.orange
+    name: "&6Orange Lights"
+    style: hanging
+    model: bulb
+    item: ORANGE_DYE
+    size: 0.26
+    chain: 0.18
+    spacing: 1.25
+    blocks: ["minecraft:orange_concrete"]
+    rgb: ["#FF871F"]
+
+  # ---- Lanterns (Minecraft lanterns) ----
+  lanterns:
+    name-key: names.lanterns
+    name: "&eLanterns"
+    style: hanging
+    item: LANTERN
+    size: 0.82
+    spacing: 2.0
+    chain: 0.25
+    light-level: 15
+    blocks:
+      - "minecraft:lantern[hanging=true]"
+  soul-lanterns:
+    name-key: names.soul-lanterns
+    name: "&bSoul Lanterns"
+    style: hanging
+    item: SOUL_LANTERN
+    size: 0.82
+    spacing: 2.0
+    chain: 0.25
+    light-level: 10
+    blocks:
+      - "minecraft:soul_lantern[hanging=true]"
+  mixed-lanterns:
+    name-key: names.mixed-lanterns
+    name: "&eMixed &bLanterns"
+    style: hanging
+    item: LANTERN
+    size: 0.82
+    spacing: 2.0
+    chain: 0.25
+    light-level: 15
+    blocks:
+      - "minecraft:lantern[hanging=true]"
+      - "minecraft:soul_lantern[hanging=true]"
+
+  # ---- Wall outlines: straight cable and short pendant drops ----
+  wall-warm:
+    name-key: names.wall-warm
+    name: "&6Warm Outline"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0.1
+    spacing: 0.7
+    blocks: ["minecraft:yellow_concrete"]
+    rgb: ["#FFD38A"]
+  wall-multicolor:
+    name-key: names.wall-multicolor
+    name: "&bMulticolor &dOutline"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0.1
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:light_blue_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete", "minecraft:magenta_concrete"]
+    rgb: ["#FF3030", "#60BFFF", "#FFE12B", "#38E658", "#E85DDA"]
+  wall-red-white:
+    name-key: names.wall-red-white
+    name: "&cRed &fand White Outline"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0.1
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:white_concrete"]
+    rgb: ["#FF3030", "#FFF3DB"]
+  wall-rainbow:
+    name-key: names.wall-rainbow
+    name: "&cR&6a&ei&an&bb&9o&5w &fOutline"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0.1
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:orange_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete", "minecraft:green_concrete", "minecraft:cyan_concrete", "minecraft:light_blue_concrete", "minecraft:blue_concrete", "minecraft:purple_concrete", "minecraft:magenta_concrete", "minecraft:pink_concrete"]
+    rgb: ["#FF3030", "#FF871F", "#FFE12B", "#8DE637", "#38C65A", "#27C9B8", "#60BFFF", "#2878FF", "#9054F4", "#E85DDA", "#FFA1C1"]
+  wall-christmas:
+    name-key: names.wall-christmas
+    name: "&cChristmas &aOutline"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: STRING
+    size: 0.22
+    chain: 0.1
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:lime_concrete", "minecraft:yellow_concrete"]
+    rgb: ["#FF3030", "#38E658", "#FFD64D"]
+  wall-yellow:
+    name-key: names.wall-yellow
+    name: "&eYellow Outline"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: YELLOW_DYE
+    size: 0.22
+    chain: 0.1
+    spacing: 0.7
+    blocks: ["minecraft:yellow_concrete"]
+    rgb: ["#FFE12B"]
+  wall-lanterns:
+    name-key: names.wall-lanterns
+    name: "&eWall Lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    item: LANTERN
+    size: 0.82
+    chain: 0.25
+    spacing: 1.9
+    light-level: 15
+    # Short pendant chains attach the lanterns to the straight wall cable.
+    blocks:
+      - "minecraft:lantern[hanging=true]"
+  wall-garland-classic:
+    name-key: names.wall-garland-classic
+    name: "&fWall &6Classic Pine Garland"
+    model: classic
+    style: wall
+    sag: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFD38A"]
+  wall-garland-snowy:
+    name-key: names.wall-garland-snowy
+    name: "&fWall &fSnowy Pine Garland"
+    model: snowy
+    style: wall
+    sag: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFE6BA"]
+  wall-garland-rgb:
+    name-key: names.wall-garland-rgb
+    name: "&fWall &aFestive &cRGB &6Garland"
+    model: rgb
+    style: wall
+    sag: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 11
+    rgb: ["#FF4141", "#60E47C", "#FFD557", "#609BFF"]
+  wall-garland-draped:
+    name-key: names.wall-garland-draped
+    name: "&fWall &6Draped Pine Garland"
+    model: classic
+    style: wall
+    sag: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFD38A"]
+  # ---- Hanging ----
+  wall-red:
+    name-key: names.wall-red
+    name: "&fWall &cRed Lights"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: RED_DYE
+    size: .22
+    chain: .10
+    spacing: .7
+    blocks: ["minecraft:red_concrete"]
+    rgb: ["#FF3030"]
+  wall-green:
+    name-key: names.wall-green
+    name: "&fWall &aGreen Lights"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: LIME_DYE
+    size: .22
+    chain: .10
+    spacing: .7
+    blocks: ["minecraft:lime_concrete"]
+    rgb: ["#38E658"]
+  wall-blue:
+    name-key: names.wall-blue
+    name: "&fWall &9Blue Lights"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: BLUE_DYE
+    size: .22
+    chain: .10
+    spacing: .7
+    blocks: ["minecraft:blue_concrete"]
+    rgb: ["#2878FF"]
+  wall-orange:
+    name-key: names.wall-orange
+    name: "&fWall &6Orange Lights"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: ORANGE_DYE
+    size: .22
+    chain: .10
+    spacing: .7
+    blocks: ["minecraft:orange_concrete"]
+    rgb: ["#FF871F"]
+
+  # ---- Lanterns (Minecraft lanterns) ----
+  wall-soul-lanterns:
+    name-key: names.wall-soul-lanterns
+    name: "&fWall &bSoul Lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    item: SOUL_LANTERN
+    size: .82
+    spacing: 1.9
+    chain: .25
+    light-level: 10
+    blocks:
+      - "minecraft:soul_lantern[hanging=true]"
+  wall-mixed-lanterns:
+    name-key: names.wall-mixed-lanterns
+    name: "&fWall &eMixed &bLanterns"
+    style: wall
+    sag: 0
+    wire: true
+    item: LANTERN
+    size: .82
+    spacing: 1.9
+    chain: .25
+    light-level: 15
+    blocks:
+      - "minecraft:lantern[hanging=true]"
+      - "minecraft:soul_lantern[hanging=true]"
+
+
+  wall-inline-warm:
+    name-key: names.wall-inline-warm
+    name: "&fInline warm"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:yellow_concrete"]
+    rgb: ["#FFD38A"]
+
+  wall-inline-multicolor:
+    name-key: names.wall-inline-multicolor
+    name: "&fInline multicolor"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:light_blue_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete", "minecraft:magenta_concrete"]
+    rgb: ["#FF3030", "#60BFFF", "#FFE12B", "#38E658", "#E85DDA"]
+
+  wall-inline-red-white:
+    name-key: names.wall-inline-red-white
+    name: "&fInline red-white"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:white_concrete"]
+    rgb: ["#FF3030", "#FFF3DB"]
+
+  wall-inline-rainbow:
+    name-key: names.wall-inline-rainbow
+    name: "&fInline rainbow"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:orange_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete", "minecraft:green_concrete", "minecraft:cyan_concrete", "minecraft:light_blue_concrete", "minecraft:blue_concrete", "minecraft:purple_concrete", "minecraft:magenta_concrete", "minecraft:pink_concrete"]
+    rgb: ["#FF3030", "#FF871F", "#FFE12B", "#8DE637", "#38C65A", "#27C9B8", "#60BFFF", "#2878FF", "#9054F4", "#E85DDA", "#FFA1C1"]
+
+  wall-inline-christmas:
+    name-key: names.wall-inline-christmas
+    name: "&fInline christmas"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: STRING
+    size: 0.22
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:lime_concrete", "minecraft:yellow_concrete"]
+    rgb: ["#FF3030", "#38E658", "#FFD64D"]
+
+  wall-inline-yellow:
+    name-key: names.wall-inline-yellow
+    name: "&fInline yellow"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: YELLOW_DYE
+    size: 0.22
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:yellow_concrete"]
+    rgb: ["#FFE12B"]
+
+  wall-inline-lanterns:
+    name-key: names.wall-inline-lanterns
+    name: "&fInline lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    item: LANTERN
+    size: 0.82
+    chain: 0
+    spacing: 1.9
+    light-level: 15
+    blocks:
+      - "minecraft:lantern[hanging=true]"
+
+  wall-inline-garland-classic:
+    name-key: names.wall-inline-garland-classic
+    name: "&fInline garland-classic"
+    model: classic
+    style: wall
+    sag: 0
+    chain: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFD38A"]
+
+  wall-inline-garland-snowy:
+    name-key: names.wall-inline-garland-snowy
+    name: "&fInline garland-snowy"
+    model: snowy
+    style: wall
+    sag: 0
+    chain: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFE6BA"]
+
+  wall-inline-garland-rgb:
+    name-key: names.wall-inline-garland-rgb
+    name: "&fInline garland-rgb"
+    model: rgb
+    style: wall
+    sag: 0
+    chain: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 11
+    rgb: ["#FF4141", "#60E47C", "#FFD557", "#609BFF"]
+
+  wall-inline-garland-draped:
+    name-key: names.wall-inline-garland-draped
+    name: "&fInline garland-draped"
+    model: classic
+    style: wall
+    sag: 0
+    chain: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFD38A"]
+
+  wall-inline-red:
+    name-key: names.wall-inline-red
+    name: "&fInline red"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: RED_DYE
+    size: .22
+    chain: 0
+    spacing: .7
+    blocks: ["minecraft:red_concrete"]
+    rgb: ["#FF3030"]
+
+  wall-inline-green:
+    name-key: names.wall-inline-green
+    name: "&fInline green"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: LIME_DYE
+    size: .22
+    chain: 0
+    spacing: .7
+    blocks: ["minecraft:lime_concrete"]
+    rgb: ["#38E658"]
+
+  wall-inline-blue:
+    name-key: names.wall-inline-blue
+    name: "&fInline blue"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: BLUE_DYE
+    size: .22
+    chain: 0
+    spacing: .7
+    blocks: ["minecraft:blue_concrete"]
+    rgb: ["#2878FF"]
+
+  wall-inline-orange:
+    name-key: names.wall-inline-orange
+    name: "&fInline orange"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: ORANGE_DYE
+    size: .22
+    chain: 0
+    spacing: .7
+    blocks: ["minecraft:orange_concrete"]
+    rgb: ["#FF871F"]
+
+  wall-inline-soul-lanterns:
+    name-key: names.wall-inline-soul-lanterns
+    name: "&fInline soul-lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    item: SOUL_LANTERN
+    size: .82
+    spacing: 1.9
+    chain: 0
+    light-level: 10
+    blocks:
+      - "minecraft:soul_lantern[hanging=true]"
+
+  wall-inline-mixed-lanterns:
+    name-key: names.wall-inline-mixed-lanterns
+    name: "&fInline mixed-lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    item: LANTERN
+    size: .82
+    spacing: 1.9
+    chain: 0
+    light-level: 15
+    blocks:
+      - "minecraft:lantern[hanging=true]"
+      - "minecraft:soul_lantern[hanging=true]"
+  wall-inline-warm:
+    name-key: names.wall-inline-warm
+    name: "&fInline mixed-lanterns"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:yellow_concrete"]
+    rgb: ["#FFD38A"]
+  wall-inline-multicolor:
+    name-key: names.wall-inline-multicolor
+    name: "&fInline mixed-lanterns"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:light_blue_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete", "minecraft:magenta_concrete"]
+    rgb: ["#FF3030", "#60BFFF", "#FFE12B", "#38E658", "#E85DDA"]
+  wall-inline-red-white:
+    name-key: names.wall-inline-red-white
+    name: "&fInline mixed-lanterns"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:white_concrete"]
+    rgb: ["#FF3030", "#FFF3DB"]
+  wall-inline-rainbow:
+    name-key: names.wall-inline-rainbow
+    name: "&fInline mixed-lanterns"
+    model: cube
+    style: wall
+    sag: 0
+    wire: true
+    item: GLOWSTONE_DUST
+    size: 0.26
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:orange_concrete", "minecraft:yellow_concrete", "minecraft:lime_concrete", "minecraft:green_concrete", "minecraft:cyan_concrete", "minecraft:light_blue_concrete", "minecraft:blue_concrete", "minecraft:purple_concrete", "minecraft:magenta_concrete", "minecraft:pink_concrete"]
+    rgb: ["#FF3030", "#FF871F", "#FFE12B", "#8DE637", "#38C65A", "#27C9B8", "#60BFFF", "#2878FF", "#9054F4", "#E85DDA", "#FFA1C1"]
+  wall-inline-christmas:
+    name-key: names.wall-inline-christmas
+    name: "&fInline mixed-lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: STRING
+    size: 0.22
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:red_concrete", "minecraft:lime_concrete", "minecraft:yellow_concrete"]
+    rgb: ["#FF3030", "#38E658", "#FFD64D"]
+  wall-inline-yellow:
+    name-key: names.wall-inline-yellow
+    name: "&fInline mixed-lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: YELLOW_DYE
+    size: 0.22
+    chain: 0
+    spacing: 0.7
+    blocks: ["minecraft:yellow_concrete"]
+    rgb: ["#FFE12B"]
+  wall-inline-lanterns:
+    name-key: names.wall-inline-lanterns
+    name: "&fInline mixed-lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    item: LANTERN
+    size: 0.82
+    chain: 0
+    spacing: 1.9
+    light-level: 15
+    blocks:
+      - "minecraft:lantern[hanging=true]"
+  wall-inline-garland-classic:
+    name-key: names.wall-inline-garland-classic
+    name: "&fInline mixed-lanterns"
+    model: classic
+    style: wall
+    sag: 0
+    chain: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFD38A"]
+  wall-inline-garland-snowy:
+    name-key: names.wall-inline-garland-snowy
+    name: "&fInline mixed-lanterns"
+    model: snowy
+    style: wall
+    sag: 0
+    chain: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFE6BA"]
+  wall-inline-garland-rgb:
+    name-key: names.wall-inline-garland-rgb
+    name: "&fInline mixed-lanterns"
+    model: rgb
+    style: wall
+    sag: 0
+    chain: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 11
+    rgb: ["#FF4141", "#60E47C", "#FFD557", "#609BFF"]
+  wall-inline-garland-draped:
+    name-key: names.wall-inline-garland-draped
+    name: "&fInline mixed-lanterns"
+    model: classic
+    style: wall
+    sag: 0
+    chain: 0
+    item: SPRUCE_LEAVES
+    wire: false
+    size: 1.0
+    spacing: 1.0
+    light-level: 10
+    rgb: ["#FFD38A"]
+  wall-inline-red:
+    name-key: names.wall-inline-red
+    name: "&fInline mixed-lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: RED_DYE
+    size: .22
+    chain: 0
+    spacing: .7
+    blocks: ["minecraft:red_concrete"]
+    rgb: ["#FF3030"]
+  wall-inline-green:
+    name-key: names.wall-inline-green
+    name: "&fInline mixed-lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: LIME_DYE
+    size: .22
+    chain: 0
+    spacing: .7
+    blocks: ["minecraft:lime_concrete"]
+    rgb: ["#38E658"]
+  wall-inline-blue:
+    name-key: names.wall-inline-blue
+    name: "&fInline mixed-lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: BLUE_DYE
+    size: .22
+    chain: 0
+    spacing: .7
+    blocks: ["minecraft:blue_concrete"]
+    rgb: ["#2878FF"]
+  wall-inline-orange:
+    name-key: names.wall-inline-orange
+    name: "&fInline mixed-lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    model: bulb
+    item: ORANGE_DYE
+    size: .22
+    chain: 0
+    spacing: .7
+    blocks: ["minecraft:orange_concrete"]
+    rgb: ["#FF871F"]
+  wall-inline-soul-lanterns:
+    name-key: names.wall-inline-soul-lanterns
+    name: "&fInline mixed-lanterns"
+    style: wall
+    sag: 0
+    wire: true
+    item: SOUL_LANTERN
+    size: .82
+    spacing: 1.9
+    chain: 0
+    light-level: 10
+    blocks:
+      - "minecraft:soul_lantern[hanging=true]"

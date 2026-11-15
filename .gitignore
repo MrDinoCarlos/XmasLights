@@ -1,0 +1,12 @@
+target/
+dist/
+out/
+.tools/
+.idea/
+*.iml
+*.log
+*.blend1
+__pycache__/
+*.pyc
+.test-server/
+decompiled/

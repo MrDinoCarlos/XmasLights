@@ -1,0 +1,541 @@
+--- a/README.md
++++ b/README.md
+@@ -1,11 +1,19 @@
+ # StrobeLights — Paper 1.21.4
+ 
+-Version 0.10.37: with TRP 0.4.18+, RGB technical carriers follow each viewer's
++Version 0.10.38 adds independent, validated source slots for XmasLights 2.8.
++Dense strings no longer overlap their technical RGB pixels when viewed from
++a distance. Position, color and radius are transmitted separately; the new
++packets are removed during Fabulous composition, including over other models.
++Nexo integrity checks also restore the namespaced shader includes. Existing
++native strobes, flashes and the v5 marker protocol retain their behavior.
++If TRP is installed, use TRP 0.4.19+ for its combined shader extension.
++
++With TRP 0.4.18+, RGB technical carriers follow each viewer's
+ Native/Fabulous profile. Native removes encoded source, shadow, discovery,
+ scene and camera-flash pixels without hiding editor handles, sounds, visible
+ models or vanilla lighting. Use `/trplive graphics native` for Fast/Fancy;
+ Fabulous RGB remains available with `/trplive graphics fabulous` and Fabulous
+-selected in Minecraft. Standalone behavior and resource-pack shaders and assets are unchanged; version metadata is updated.
++selected in Minecraft.
+ 
+ StrobeLights provides configurable 3D RGB strobe lighting based on
+ [Light Painter](https://github.com/bradleyq/light_painter), revision `2364940`,
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -3,7 +3,7 @@
+ }
+ 
+ group = "es.mrdino"
+-version = "0.10.37"
++version = "0.10.38"
+ 
+ repositories {
+     mavenCentral()
+--- a/resource-pack/assets/minecraft/shaders/core/rendertype_item_entity_translucent_cull.fsh
++++ b/resource-pack/assets/minecraft/shaders/core/rendertype_item_entity_translucent_cull.fsh
+@@ -2,6 +2,7 @@
+ 
+ #moj_import <minecraft:fog.glsl>
+ #moj_import <minecraft:utils.glsl>
++#moj_import <strobelights:stable_slot_fragment.glsl>
+ 
+ uniform sampler2D Sampler0;
+ 
+@@ -31,6 +32,7 @@
+ }
+ 
+ void main() {
++    if (strobeStableMarker > 0.5) { strobeStableSlotFragment(fragColor, ProjMat); return; }
+     bool gui = isGUI(ProjMat);
+ 
+     
+--- a/resource-pack/assets/minecraft/shaders/core/rendertype_item_entity_translucent_cull.vsh
++++ b/resource-pack/assets/minecraft/shaders/core/rendertype_item_entity_translucent_cull.vsh
+@@ -3,6 +3,7 @@
+ #moj_import <minecraft:light.glsl>
+ #moj_import <minecraft:fog.glsl>
+ #moj_import <minecraft:utils.glsl>
++#moj_import <strobelights:stable_slot_vertex.glsl>
+ 
+ in vec3 Position;
+ in vec4 Color;
+@@ -151,6 +152,7 @@
+ }
+ 
+ void main() {
++    if (strobeStableSlotVertex(Position, Color, UV0, Sampler0, ProjMat, ModelViewMat)) return;
+     vertexDistance = fog_distance(Position, FogShape);
+     vertexColor = minecraft_mix_light(Light0_Direction, Light1_Direction, Normal, Color) * texelFetch(Sampler2, UV2 / 16, 0);
+     texCoord0 = UV0;
+--- a/resource-pack/assets/minecraft/shaders/post/aggregate_6.fsh
++++ b/resource-pack/assets/minecraft/shaders/post/aggregate_6.fsh
+@@ -1,6 +1,7 @@
+ #version 150
+ 
+ #moj_import <minecraft:utils.glsl>
++#moj_import <strobelights:stable_slot_common.glsl>
+ 
+ uniform sampler2D DiffuseSampler;
+ uniform sampler2D ItemEntitySampler;
+@@ -165,9 +166,10 @@
+         vec2 sourceNdc = samplepos * 2.0 - 1.0;
+         samplepos = (samplepos - vec2(0.5)) * vec2(inAspectRatio, 1.0);
+         int encodedValue = markerValue(sampleColor.rgb);
++        bool stableSource = strobeStableMetadata(sampleColor.a);
+         float markerConversionK = conversionK;
+         int expansionCode = 3;
+-        if (isOffscreenLight(encodedValue)) {
++        if (!stableSource && isOffscreenLight(encodedValue)) {
+             int projectionCode = (encodedValue >> 16) & 15;
+             expansionCode = (encodedValue >> 12) & 15;
+             markerConversionK = decodeProjectionK(projectionCode);
+@@ -176,7 +178,17 @@
+             samplepos * markerConversionK * lightDepth,
+             lightDepth
+         );
+-        if (isOffscreenLight(encodedValue)) {
++        if (stableSource) {
++            vec2 pixelSize = 1.0 / vec2(textureSize(ItemEntitySampler, 0));
++            vec2 center = vec2(px + 0.5, py + 0.5) * inOneTexel;
++            lightWorldCoord = vec3(
++                strobeStablePosition(texture(ItemEntitySampler, center + vec2(0.0, -1.0) * pixelSize).rgb),
++                strobeStablePosition(texture(ItemEntitySampler, center + vec2(1.0, -1.0) * pixelSize).rgb),
++                strobeStablePosition(texture(ItemEntitySampler, center + vec2(-1.0, 0.0) * pixelSize).rgb));
++            ivec3 projectionBytes = ivec3(floor(texture(ItemEntitySampler, center + vec2(1.0, 0.0) * pixelSize).rgb * 255.0 + 0.5));
++            projectionCode16 = (projectionBytes.r << 8) | projectionBytes.g;
++            expansionCode = (encodedValue >> 16) & 15;
++        } else if (isOffscreenLight(encodedValue)) {
+             bool trpLight = sampleColor.a > 0.0 && sampleColor.a < 0.5;
+             float lane = trpLight ? 0.45 : -0.45;
+             lightWorldCoord = vec3((sourceNdc.x - lane) / 0.75,
+--- a/resource-pack/assets/minecraft/shaders/post/filter.fsh
++++ b/resource-pack/assets/minecraft/shaders/post/filter.fsh
+@@ -1,6 +1,7 @@
+ #version 150
+ 
+ #moj_import <minecraft:utils.glsl>
++#moj_import <strobelights:stable_slot_packet.glsl>
+ 
+ uniform sampler2D DiffuseSampler;
+ uniform sampler2D DiffuseDepthSampler;
+@@ -20,6 +21,12 @@
+             ivec4 anchorBytes = ivec4(floor(
+                 texture(DiffuseSampler, texCoord) * 255.0 + 0.5
+             ));
++            if (strobeStablePacket(DiffuseSampler, texCoord)) {
++                vec2 pixel = 1.0 / vec2(textureSize(DiffuseSampler, 0));
++                int packetValue = strobeStableInteger(texture(DiffuseSampler, texCoord + vec2(-1.0, -1.0) * pixel).rgb);
++                outColor = vec4(strobeStableRawBytes(strobeStableSourceValue(packetValue)), 0.75);
++                return;
++            }
+             bool strobeCarrier = abs(anchorBytes.a - 5) <= 1
+                 && all(lessThanEqual(abs(anchorBytes.rgb - ivec3(2)), ivec3(1)));
+             bool trpCarrier = anchorBytes.a >= 7 && anchorBytes.a <= 22;
+--- a/resource-pack/assets/minecraft/shaders/post/light.fsh
++++ b/resource-pack/assets/minecraft/shaders/post/light.fsh
+@@ -1,6 +1,7 @@
+ #version 150
+ 
+ #moj_import <minecraft:utils.glsl>
++#moj_import <strobelights:stable_slot_common.glsl>
+ 
+ uniform sampler2D DiffuseDepthSampler;
+ uniform sampler2D OcclusionDepthSampler;
+@@ -221,7 +222,8 @@
+             if (isCameraFlash(encodedValue)) {
+                 continue;
+             }
+-            bool offscreenLight = isOffscreenLight(encodedValue);
++            bool stableSource = strobeStableMetadata(sourceMetadata);
++            bool offscreenLight = !stableSource && isOffscreenLight(encodedValue);
+             if (trpLight && !offscreenLight) {
+                 continue;
+             }
+@@ -229,7 +231,9 @@
+                 (vec2(float(i), 6.0) + 0.5) * oneTexelAux1).rg * 255.0 + 0.5));
+             float markerConversionK = decodeExactProjectionK(
+                 (projectionBytes.r << 8) | projectionBytes.g);
+-            if (offscreenLight) {
++            if (stableSource) {
++                lightColor = strobeStableColor(encodedValue);
++            } else if (offscreenLight) {
+                 lightWorldCoord = reconstructOffscreenLight(lightWorldCoord, encodedValue);
+                 lightColor = offscreenLightColor(encodedValue);
+             }
+@@ -240,7 +244,7 @@
+                 continue;
+             }
+             bool geometryOcclusion = trpLight
+-                || hasGeometryOcclusionToken(lightWorldCoord);
++                || (!stableSource && hasGeometryOcclusionToken(lightWorldCoord));
+             vec3 worldCoord = vec3(
+                 screenCoord * markerConversionK * depth,
+                 depth
+@@ -254,7 +258,12 @@
+             float falloffPower;
+             float lightBoost;
+             vec3 emittedColor;
+-            if (trpLight) {
++            if (stableSource) {
++                lightRadius = strobeStableRadius(encodedValue);
++                emittedColor = lightColor;
++                falloffPower = 2.0;
++                lightBoost = 0.5;
++            } else if (trpLight) {
+                 int radiusLowCode = int(clamp(
+                     floor(sourceMetadata * 255.0 + 0.5) - 1.0,
+                     0.0,
+--- a/resource-pack/assets/minecraft/shaders/post/light_t.fsh
++++ b/resource-pack/assets/minecraft/shaders/post/light_t.fsh
+@@ -1,6 +1,7 @@
+ #version 150
+ 
+ #moj_import <minecraft:utils.glsl>
++#moj_import <strobelights:stable_slot_common.glsl>
+ 
+ uniform sampler2D DiffuseDepthSampler;
+ uniform sampler2D LightsSampler;
+@@ -223,7 +224,8 @@
+             if (isCameraFlash(encodedValue)) {
+                 continue;
+             }
+-            bool offscreenLight = isOffscreenLight(encodedValue);
++            bool stableSource = strobeStableMetadata(sourceMetadata);
++            bool offscreenLight = !stableSource && isOffscreenLight(encodedValue);
+             if (trpLight && !offscreenLight) {
+                 continue;
+             }
+@@ -231,7 +233,9 @@
+                 (vec2(float(i), 6.0) + 0.5) * oneTexelAux1).rg * 255.0 + 0.5));
+             float markerConversionK = decodeExactProjectionK(
+                 (projectionBytes.r << 8) | projectionBytes.g);
+-            if (offscreenLight) {
++            if (stableSource) {
++                lightColor = strobeStableColor(encodedValue);
++            } else if (offscreenLight) {
+                 lightWorldCoord = reconstructOffscreenLight(lightWorldCoord, encodedValue);
+                 lightColor = offscreenLightColor(encodedValue);
+             }
+@@ -242,7 +246,7 @@
+                 continue;
+             }
+             bool geometryOcclusion = trpLight
+-                || hasGeometryOcclusionToken(lightWorldCoord);
++                || (!stableSource && hasGeometryOcclusionToken(lightWorldCoord));
+             vec3 worldCoord = vec3(
+                 screenCoord * markerConversionK * depth,
+                 depth
+@@ -256,7 +260,12 @@
+             float falloffPower;
+             float lightBoost;
+             vec3 emittedColor;
+-            if (trpLight) {
++            if (stableSource) {
++                lightRadius = strobeStableRadius(encodedValue);
++                emittedColor = lightColor;
++                falloffPower = 2.0;
++                lightBoost = 0.5;
++            } else if (trpLight) {
+                 int radiusLowCode = int(clamp(
+                     floor(sourceMetadata * 255.0 + 0.5) - 1.0,
+                     0.0,
+--- a/resource-pack/assets/minecraft/shaders/post/transparency.fsh
++++ b/resource-pack/assets/minecraft/shaders/post/transparency.fsh
+@@ -1,6 +1,7 @@
+ #version 150
+ 
+ #moj_import <minecraft:utils.glsl>
++#moj_import <strobelights:stable_slot_packet.glsl>
+ 
+ uniform sampler2D DiffuseSampler;
+ uniform sampler2D DiffuseDepthSampler;
+@@ -74,6 +75,12 @@
+ 
+ bool technicalMarkerPixel(sampler2D sampler, vec2 coord) {
+     ivec4 current = markerBytes(sampler, coord);
++    if (current.a == 255) {
++        vec2 pixel = 1.0 / vec2(textureSize(sampler, 0));
++        for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++)
++            if (strobeStablePacket(sampler, coord + vec2(float(x), float(y)) * pixel)) return true;
++        return false;
++    }
+     // Fast path for ordinary near-camera item geometry.
+     if (current.a > 23 || any(greaterThan(current.rgb, ivec3(10)))) {
+         return false;
+--- /dev/null
++++ b/resource-pack/assets/strobelights/shaders/include/stable_slot_common.glsl
+@@ -0,0 +1,50 @@
++// STROBE_STABLE_SLOT_V1: collision-free, backwards-compatible integration sources.
++#ifndef STROBE_STABLE_SLOT_COMMON
++#define STROBE_STABLE_SLOT_COMMON
++bool strobeStableValue(int value) {
++    int bank = (value >> 20) & 15;
++    return bank == 6 || bank == 7 || bank == 8 || bank == 9
++        || bank == 11 || bank == 12 || bank == 14 || bank == 15;
++}
++int strobeStableSlot(int value) {
++    int tag = (value >> 20) & 15;
++    int bank = tag == 8 ? 0 : tag == 9 ? 1 : tag == 11 ? 2 : tag == 12 ? 3
++        : tag == 14 ? 4 : tag == 15 ? 5 : tag == 6 ? 6 : 7;
++    return bank * 16 + ((value >> 12) & 15);
++}
++bool strobeStableMetadata(float value) { return value > 0.7 && value < 0.8; }
++int strobeStableProjectionK(float value) {
++    float normalized = log2(clamp(value, 0.0000152587890625, 256.0) / 0.0000152587890625) / 24.0;
++    return int(floor(normalized * 65535.0 + 0.5));
++}
++vec3 strobeStableRawBytes(int value) {
++    return vec3(float((value >> 16) & 255), float((value >> 8) & 255), float(value & 255)) / 255.0;
++}
++vec3 strobeStableBytes(int value) {
++    // Base 250 keeps every packet byte below TRP's reserved 252/253 row tags.
++    return vec3(float(value / 62500), float((value / 250) % 250), float(value % 250)) / 255.0;
++}
++int strobeStableInteger(vec3 colour) {
++    ivec3 bytes = ivec3(floor(colour * 255.0 + 0.5));
++    return bytes.r * 62500 + bytes.g * 250 + bytes.b;
++}
++int strobeStablePacketValue(int value) { return (((value >> 16) & 15) << 19) | (strobeStableSlot(value) << 12) | (value & 4095); }
++int strobeStableSourceValue(int value) {
++    int slot = (value >> 12) & 127;
++    int bank = slot / 16;
++    int tag = bank == 0 ? 8 : bank == 1 ? 9 : bank == 2 ? 11 : bank == 3 ? 12 : bank == 4 ? 14 : bank == 5 ? 15 : bank == 6 ? 6 : 7;
++    return (tag << 20) | (((value >> 19) & 15) << 16) | ((slot & 15) << 12) | (value & 4095);
++}
++float strobeStablePosition(vec3 colour) { return float(strobeStableInteger(colour)) / 4096.0 - 512.0; }
++vec3 strobeStablePacketColour(int index, int value, int projection, vec3 position) {
++    if (index == 0) return strobeStableBytes(strobeStablePacketValue(value));
++    if (index >= 1 && index <= 3) return strobeStableBytes(int(floor((clamp(position[index - 1], -512.0, 512.0) + 512.0) * 4096.0 + 0.5)));
++    if (index == 4) return vec3(float((projection >> 8) & 255), float(projection & 255), 197.0) / 255.0;
++    if (index == 5) return strobeStableBytes((strobeStablePacketValue(value) ^ (projection << 7) ^ 0x5AC3A5) & 0x7FFFFF);
++    return index == 6 ? vec3(71.0, 163.0, 247.0) / 255.0 : vec3(109.0, 193.0, 37.0) / 255.0;
++}
++vec3 strobeStableColor(int value) {
++    return vec3(float((value >> 8) & 15), float((value >> 4) & 15), float(value & 15)) / 15.0;
++}
++float strobeStableRadius(int value) { return 0.25 * pow(32.0, float((value >> 16) & 15) / 15.0); }
++#endif
+--- /dev/null
++++ b/resource-pack/assets/strobelights/shaders/include/stable_slot_fragment.glsl
+@@ -0,0 +1,26 @@
++#moj_import <strobelights:stable_slot_common.glsl>
++flat in float strobeStableMarker;
++flat in vec3 strobeStableViewPosition;
++flat in vec3 strobeStablePayload;
++in vec2 strobeStableCoordinate;
++
++void strobeStableSlotFragment(out vec4 outputColour, mat4 projection) {
++    mat2 uvPerPixel = mat2(dFdx(strobeStableCoordinate), dFdy(strobeStableCoordinate));
++    if (abs(determinant(uvPerPixel)) < 0.000000000001) discard;
++    vec2 pixelOffset = inverse(uvPerPixel) * (strobeStableCoordinate - vec2(0.5));
++    ivec2 cell = ivec2(floor(pixelOffset + vec2(0.501)));
++    if (abs(cell.x) > 1 || abs(cell.y) > 1) discard;
++    int cellIndex = (cell.y + 1) * 3 + cell.x + 1;
++    ivec3 bytes = ivec3(floor(strobeStablePayload * 255.0 + 0.5));
++    int value = (bytes.r << 16) | (bytes.g << 8) | bytes.b;
++    // Opaque data is independent of previously rendered item geometry. The
++    // Fabulous compositor validates and removes these tiny edge packets.
++    gl_FragDepth = 0.0;
++    if (cellIndex == 4) {
++        outputColour = vec4(vec3(29.0, 177.0, 239.0) / 255.0, 1.0);
++    } else {
++        int index = cellIndex < 4 ? cellIndex : cellIndex - 1;
++        int projectionCode = strobeStableProjectionK(2.0 / max(abs(projection[1][1]), 0.0001));
++        outputColour = vec4(strobeStablePacketColour(index, value, projectionCode, strobeStableViewPosition), 1.0);
++    }
++}
+--- /dev/null
++++ b/resource-pack/assets/strobelights/shaders/include/stable_slot_packet.glsl
+@@ -0,0 +1,28 @@
++#moj_import <strobelights:stable_slot_common.glsl>
++ivec4 strobeStableTexel(sampler2D image, vec2 coord) {
++    return ivec4(floor(texture(image, coord) * 255.0 + 0.5));
++}
++bool strobeStablePacket(sampler2D image, vec2 center) {
++    if (!all(equal(strobeStableTexel(image, center), ivec4(29, 177, 239, 255)))) return false;
++    vec2 pixel = 1.0 / vec2(textureSize(image, 0));
++    int packedValue = strobeStableInteger(texture(image, center + vec2(-1.0, -1.0) * pixel).rgb);
++    if (packedValue < 0 || packedValue > 8388607) return false;
++    int value = strobeStableSourceValue(packedValue);
++    ivec4 projectionBytes = strobeStableTexel(image, center + vec2(1.0, 0.0) * pixel);
++    if (!strobeStableValue(value) || projectionBytes.b != 197 || projectionBytes.a != 255) return false;
++    int projection = (projectionBytes.r << 8) | projectionBytes.g;
++    int index = 0;
++    for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
++        if (x == 0 && y == 0) continue;
++        ivec4 sampleBytes = strobeStableTexel(image, center + vec2(float(x), float(y)) * pixel);
++        if (sampleBytes.a != 255) return false;
++        if (index >= 1 && index <= 3) {
++            if (sampleBytes.r * 62500 + sampleBytes.g * 250 + sampleBytes.b > 4194304) return false;
++        } else {
++            ivec3 expected = ivec3(floor(strobeStablePacketColour(index, value, projection, vec3(0.0)) * 255.0 + 0.5));
++            if (!all(equal(sampleBytes.rgb, expected))) return false;
++        }
++        index++;
++    }
++    return true;
++}
+--- /dev/null
++++ b/resource-pack/assets/strobelights/shaders/include/stable_slot_vertex.glsl
+@@ -0,0 +1,29 @@
++#moj_import <strobelights:stable_slot_common.glsl>
++flat out float strobeStableMarker;
++flat out vec3 strobeStableViewPosition;
++flat out vec3 strobeStablePayload;
++out vec2 strobeStableCoordinate;
++
++bool strobeStableSlotVertex(vec3 position, vec4 colour, vec2 uv, sampler2D carrierTexture, mat4 projection, mat4 modelView) {
++    strobeStableMarker = 0.0;
++    int value = (int(floor(colour.r * 255.0 + 0.5)) << 16)
++        | (int(floor(colour.g * 255.0 + 0.5)) << 8) | int(floor(colour.b * 255.0 + 0.5));
++    ivec4 texel = ivec4(floor(texture(carrierTexture, uv) * 255.0 + 0.5));
++    if (abs(projection[2][3]) < 0.000001 || !strobeStableValue(value)
++        || !all(equal(texel, ivec4(37, 211, 83, 5)))) return false;
++    vec4 source = modelView * vec4(position, 1.0);
++    strobeStableViewPosition = vec3(source.x, source.y, -source.z);
++    strobeStablePayload = colour.rgb;
++    strobeStableMarker = 1.0;
++    int slot = strobeStableSlot(value);
++    int corner = gl_VertexID % 4;
++    vec2 coordinate = corner == 0 ? vec2(0.0, 0.0) : corner == 1 ? vec2(0.0, 1.0)
++        : corner == 2 ? vec2(1.0, 1.0) : vec2(1.0, 0.0);
++    strobeStableCoordinate = coordinate;
++    // Reserve small packets at the upper edge, away from both v5 side lanes.
++    // XYZ travels in the packet rather than being inferred from these pixels.
++    vec2 center = vec2(-0.93 + (float(slot % 32) + 0.5) * (1.86 / 32.0), 0.965 - float(slot / 32) * 0.05);
++    vec2 cornerOffset = vec2(coordinate.x * 2.0 - 1.0, 1.0 - coordinate.y * 2.0);
++    gl_Position = vec4(center + cornerOffset * vec2(0.03, 0.04), 0.0, 1.0);
++    return true;
++}
+--- a/resource-pack/assets/strobelights/strobelights-integration.json
++++ b/resource-pack/assets/strobelights/strobelights-integration.json
+@@ -1,5 +1,6 @@
+ {
+-  "version": "0.10.37",
++  "version": "0.10.38",
++  "stable_source_protocol": "slots3x3_depth_v1",
+   "render_pipeline": "light_painter_rgb",
+   "marker_protocol": "typed_bitgrid_3x3_v5"
+ }
+--- a/resource-pack/pack.mcmeta
++++ b/resource-pack/pack.mcmeta
+@@ -1,6 +1,6 @@
+ {
+   "pack": {
+     "pack_format": 46,
+-    "description": "StrobeLights 0.10.37 - persistent RGB carriers and per-strobe shadows - Paper 1.21.4"
++    "description": "StrobeLights 0.10.38 - stable integration slots and native RGB - Paper 1.21.4"
+   }
+ }
+--- a/src/main/java/es/mrdino/strobelights/StrobeLightsPlugin.java
++++ b/src/main/java/es/mrdino/strobelights/StrobeLightsPlugin.java
+@@ -73,6 +73,14 @@
+         if (manager != null) {
+             manager.shutdown();
+         }
++    }
++
++    /** No strobes are registered by integrations using this optional shader capability. */
++    public int stableSourceProtocol() {
++        var trp = getServer().getPluginManager().getPlugin("TRPServerEdition");
++        if (trp == null || !trp.isEnabled()) return 1;
++        try { return Integer.valueOf(1).equals(trp.getClass().getMethod("stableSourceProtocol").invoke(trp)) ? 1 : 0; }
++        catch (ReflectiveOperationException failure) { return 0; }
+     }
+ 
+     public StrobeManager manager() {
+--- a/src/main/java/es/mrdino/strobelights/resourcepack/ResourcePackService.java
++++ b/src/main/java/es/mrdino/strobelights/resourcepack/ResourcePackService.java
+@@ -53,7 +53,7 @@
+ /** Loads, hosts and sends the Light Painter shader and GUI icon resource pack. */
+ public final class ResourcePackService implements Listener {
+ 
+-    private static final String PACK_REVISION = "0.10.37";
++    private static final String PACK_REVISION = "0.10.38";
+     private static final String DEFAULT_PUBLIC_URL =
+         "http://serverip.com:8250/strobelights/{token}.zip";
+     private static final String EMBEDDED_PACK =
+@@ -1242,6 +1242,7 @@
+     static boolean isNexoRenderPipelineEntry(String path) {
+         return path.equals("assets/minecraft/post_effect/transparency.json")
+             || path.equals("assets/strobelights/strobelights-integration.json")
++            || path.startsWith("assets/strobelights/shaders/")
+             || path.startsWith("assets/minecraft/shaders/");
+     }
+ 
+--- a/src/test/java/es/mrdino/strobelights/resourcepack/EmbeddedPackServerTest.java
++++ b/src/test/java/es/mrdino/strobelights/resourcepack/EmbeddedPackServerTest.java
+@@ -83,6 +83,9 @@
+         assertTrue(ResourcePackService.isNexoRenderPipelineEntry(
+             "assets/strobelights/strobelights-integration.json"
+         ));
++        assertTrue(ResourcePackService.isNexoRenderPipelineEntry(
++            "assets/strobelights/shaders/include/stable_slot_packet.glsl"
++        ));
+         assertFalse(ResourcePackService.isNexoRenderPipelineEntry(
+             "assets/strobelights/models/item/flare_launcher.json"
+         ));
+@@ -135,6 +138,32 @@
+         assertFalse(entries.containsKey(
+             "assets/strobelights/models/item/flare_launcher.json"
+         ));
++    }
++
++    @Test
++    void repairsMissingOrChangedStableIncludesAfterNexoGeneration() throws Exception {
++        String helper = "assets/strobelights/shaders/include/stable_slot_packet.glsl";
++        byte[] source = zip(Map.of(
++            "assets/minecraft/shaders/core/item.vsh", utf8("hybrid-core"),
++            helper, utf8("validated-stable-packets")
++        ));
++        for (boolean missing : new boolean[] {true, false}) {
++            Map<String, byte[]> generatedEntries = new LinkedHashMap<>();
++            generatedEntries.put("pack.mcmeta", utf8("nexo-meta"));
++            generatedEntries.put("assets/minecraft/shaders/core/item.vsh", utf8("hybrid-core"));
++            generatedEntries.put("assets/nexo/textures/item/example.png", new byte[] {1, 2, 3});
++            if (!missing) generatedEntries.put(helper, utf8("outdated-stable-packets"));
++            byte[] generated = zip(generatedEntries);
++
++            assertFalse(ResourcePackService.containsExactNexoRenderPipeline(generated, source));
++            byte[] repaired = ResourcePackService.overlayNexoRenderPipeline(generated, source);
++            assertTrue(ResourcePackService.containsExactNexoRenderPipeline(repaired, source));
++            Map<String, byte[]> entries = unzip(repaired);
++            assertArrayEquals(utf8("validated-stable-packets"), entries.get(helper));
++            assertArrayEquals(utf8("nexo-meta"), entries.get("pack.mcmeta"));
++            assertArrayEquals(new byte[] {1, 2, 3},
++                entries.get("assets/nexo/textures/item/example.png"));
++        }
+     }
+ 
+     @Test
+--- a/src/test/java/es/mrdino/strobelights/resourcepack/ShaderPackContractTest.java
++++ b/src/test/java/es/mrdino/strobelights/resourcepack/ShaderPackContractTest.java
+@@ -25,7 +25,7 @@
+         for (String name : new String[] {"light.fsh", "light_t.fsh"}) {
+             Path shader = program.resolve(name);
+             String source = Files.readString(shader);
+-            assertTrue(source.contains("bool offscreenLight = isOffscreenLight(encodedValue);"));
++            assertTrue(source.contains("bool offscreenLight = !stableSource && isOffscreenLight(encodedValue);"));
+             assertFalse(source.contains("bool offscreenLight = !trpLight"));
+             assertTrue(source.contains("if (trpLight && !offscreenLight)"));
+             assertTrue(source.contains("lightWorldCoord = reconstructOffscreenLight("));
+@@ -55,7 +55,7 @@
+             "assets/strobelights/strobelights-integration.json"
+         );
+         assertTrue(Files.isRegularFile(integration));
+-        assertContains(integration, "\"version\": \"0.10.37\"");
++        assertContains(integration, "\"version\": \"0.10.38\"");
+         assertContains(integration, "\"render_pipeline\": \"light_painter_rgb\"");
+         assertContains(integration, "\"marker_protocol\": \"typed_bitgrid_3x3_v5\"");
+     }
+@@ -560,7 +560,7 @@
+             assertContains(shader, "hasGeometryOcclusionToken");
+             assertContains(shader, "tokenMetadata < 0.5");
+             assertContains(shader, "bool geometryToken = !trpLight");
+-            assertContains(shader, "bool offscreenLight = isOffscreenLight(encodedValue);");
++            assertContains(shader, "bool offscreenLight = !stableSource && isOffscreenLight(encodedValue);");
+             assertNotContains(shader, "bool offscreenLight = !trpLight");
+             assertContains(shader, "int raySteps = trpLight ? 6");
+             assertContains(shader, "bool geometryOcclusion = trpLight");

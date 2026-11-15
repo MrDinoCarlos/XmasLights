@@ -1,0 +1,133 @@
+--- a/README.md
++++ b/README.md
+@@ -14,12 +14,18 @@
+ authoritative on the server. Players use an unmodified Minecraft Java client
+ and accept the resource pack sent by the plugin.
+ 
+-- Plugin version: `0.4.18`
++- Plugin version: `0.4.19`
+ - Minecraft builds: `1.20.1`, `1.21.4`, `1.21.10`, `1.21.11`, `26.1.2` and `26.2`
+ - Author: MrDino Dev Cave
+ - Documentation: <https://mrdino.es/wiki-category/trp-se/>
+ - Discord: <https://discord.gg/ddyfucfZpy>
+ - Languages: English and Spanish
++
++Version 0.4.19 adds the optional StrobeLights 0.10.38 stable-source extension
++for XmasLights 2.8. Its validated slot packets are inserted into the combined
++core shader while preserving TRP's original beam code and native v5 markers.
++This change is verified for the Paper 1.21.4 build. It does not change the
++standalone TRP renderer or imply support for external OptiFine shaderpacks.
+ 
+ ## Main features
+ 
+--- a/gradle.properties
++++ b/gradle.properties
+@@ -4,6 +4,6 @@
+ spigot_api_version=1.20.1-R0.1-SNAPSHOT
+ 
+ plugin_group=es.mrdino
+-plugin_version=0.4.18
++plugin_version=0.4.19
+ plugin_name=Theatrical Realistic Pack: Server Edition
+ plugin_short_name=TRP: Server Edition
+--- a/src/main/java/es/mrdino/trpserveredition/TheatricalRealisticPackServerEdition.java
++++ b/src/main/java/es/mrdino/trpserveredition/TheatricalRealisticPackServerEdition.java
+@@ -227,6 +227,9 @@
+     }
+ 
+     /** Adds another plugin's resources to the single pack delivered by TRP. */
++    /** Stable StrobeLights source extension supported by the generated hybrid item shader. */
++    public int stableSourceProtocol() { return 1; }
++
+     public String registerResourcePackOverlay(Plugin owner, String fileName, byte[] packBytes) {
+         return resourcePack == null
+             ? null
+--- a/src/main/java/es/mrdino/trpserveredition/resourcepack/ResourcePackMerger.java
++++ b/src/main/java/es/mrdino/trpserveredition/resourcepack/ResourcePackMerger.java
+@@ -38,6 +38,7 @@
+         Map<String, byte[]> trpEntries = new LinkedHashMap<>(merged);
+         boolean includesStrobeLights = false;
+         int strobePipelineMode = 0;
++        boolean stableStrobeSources = false;
+         for (byte[] overlay : overlays) {
+             Map<String, byte[]> overlayEntries = readZip(overlay);
+             boolean strobeLights = overlayEntries.containsKey(
+@@ -45,6 +46,8 @@
+             );
+             includesStrobeLights |= strobeLights;
+             if (strobeLights) {
++                stableStrobeSources |= "slots3x3_depth_v1".equals(string(parseObject(overlayEntries.get(
++                    "assets/strobelights/strobelights-integration.json")), "stable_source_protocol"));
+                 int overlayMode = strobePipelineMode(overlayEntries);
+                 if (strobePipelineMode != 0 && strobePipelineMode != overlayMode) {
+                     throw new IllegalStateException(
+@@ -69,9 +72,38 @@
+             mergeTrpBeamPostPipeline(merged, trpEntries);
+             patchStrobeTransparency(merged);
+             activateStrobePipeline(merged, strobePipelineMode);
++            if (stableStrobeSources) activateStableStrobeSources(merged);
+             validateHybridShader(merged, strobePipelineMode);
+         }
+         return writeZip(merged);
++    }
++
++    /** Extend the existing hybrid shader; preserve every TRP beam and native v5 path. */
++    private static void activateStableStrobeSources(Map<String, byte[]> entries) {
++        for (String stage : List.of("vertex", "fragment", "common", "packet"))
++            if (!entries.containsKey("assets/strobelights/shaders/include/stable_slot_" + stage + ".glsl"))
++                throw new IllegalStateException("Missing stable StrobeLights shader extension: " + stage);
++        for (String base : List.of("rendertype_item_entity_translucent_cull", "item")) {
++            for (String extension : List.of("vsh", "fsh")) {
++                String path = "assets/minecraft/shaders/core/" + base + "." + extension;
++                byte[] bytes = entries.get(path);
++                if (bytes == null) continue;
++                String source = new String(bytes, StandardCharsets.UTF_8);
++                if (source.contains("stable_slot_vertex.glsl") || source.contains("stable_slot_fragment.glsl")) continue;
++                boolean vertex = extension.equals("vsh");
++                String include = "#moj_import <strobelights:stable_slot_" + (vertex ? "vertex" : "fragment") + ".glsl>\n";
++                int firstLine = source.indexOf('\n');
++                if (firstLine < 0) throw new IllegalStateException("Invalid shader: " + path);
++                source = source.substring(0, firstLine + 1) + include + source.substring(firstLine + 1);
++                var main = java.util.regex.Pattern.compile("void\\s+main\\s*\\(\\s*\\)\\s*\\{").matcher(source);
++                if (!main.find()) throw new IllegalStateException("Missing shader entry point: " + path);
++                String call = vertex
++                    ? "\n    if (strobeStableSlotVertex(Position, Color, UV0, Sampler0, ProjMat, ModelViewMat)) return;\n"
++                    : "\n    if (strobeStableMarker > 0.5) { strobeStableSlotFragment(fragColor, ProjMat); return; }\n";
++                source = main.replaceFirst(java.util.regex.Matcher.quoteReplacement(main.group() + call));
++                entries.put(path, source.getBytes(StandardCharsets.UTF_8));
++            }
++        }
+     }
+ 
+     private static void mergeTrpBeamPostPipeline(
+--- a/src/test/java/es/mrdino/trpserveredition/resourcepack/ResourcePackMergerTest.java
++++ b/src/test/java/es/mrdino/trpserveredition/resourcepack/ResourcePackMergerTest.java
+@@ -302,6 +302,28 @@
+             .contains("TRP_STROBE_PIPELINE_MODE = 2"));
+     }
+ 
++    @Test
++    void stableStrobeExtensionPreservesTheEntireExistingBeamShader() throws Exception {
++        String core = "assets/minecraft/shaders/core/rendertype_item_entity_translucent_cull";
++        String vertex = Files.readString(Path.of("resource-pack/vanilla-reset/shaders/core/rendertype_item_entity_translucent_cull.vsh"));
++        String fragment = Files.readString(Path.of("resource-pack/vanilla-reset/shaders/core/rendertype_item_entity_translucent_cull.fsh"));
++        byte[] base = zip(Map.of(core + ".vsh", vertex, core + ".fsh", fragment));
++        Map<String, String> extra = new LinkedHashMap<>();
++        extra.put("assets/strobelights/strobelights-integration.json", "{\"version\":\"0.10.38\",\"marker_protocol\":\"typed_bitgrid_3x3_v5\",\"stable_source_protocol\":\"slots3x3_depth_v1\"}");
++        for (String stage : List.of("vertex", "fragment", "common", "packet")) extra.put("assets/strobelights/shaders/include/stable_slot_" + stage + ".glsl", "// fixture: " + stage);
++        Map<String, byte[]> result = unzip(ResourcePackMerger.merge(base, List.of(zip(extra))));
++        String updatedVertex = new String(result.get(core + ".vsh"), StandardCharsets.UTF_8);
++        String updatedFragment = new String(result.get(core + ".fsh"), StandardCharsets.UTF_8);
++        assertEquals(vertex.replace("TRP_STROBE_PIPELINE_MODE = 0", "TRP_STROBE_PIPELINE_MODE = 1"),
++            updatedVertex.replace("#moj_import <strobelights:stable_slot_vertex.glsl>\n", "")
++                .replace("\n    if (strobeStableSlotVertex(Position, Color, UV0, Sampler0, ProjMat, ModelViewMat)) return;\n", ""));
++        assertEquals(fragment.replace("TRP_STROBE_PIPELINE_MODE = 0", "TRP_STROBE_PIPELINE_MODE = 1"),
++            updatedFragment.replace("#moj_import <strobelights:stable_slot_fragment.glsl>\n", "")
++                .replace("\n    if (strobeStableMarker > 0.5) { strobeStableSlotFragment(fragColor, ProjMat); return; }\n", ""));
++        extra.remove("assets/strobelights/shaders/include/stable_slot_common.glsl");
++        assertThrows(IllegalStateException.class, () -> ResourcePackMerger.merge(base, List.of(zip(extra))));
++    }
++
+     private static byte[] zip(Map<String, String> files) throws Exception {
+         ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+         try (ZipOutputStream output = new ZipOutputStream(bytes)) {

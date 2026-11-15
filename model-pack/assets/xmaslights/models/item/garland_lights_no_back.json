@@ -1,0 +1,314 @@
+{
+  "credit": "AstralicaStudio & MrDino",
+  "ambientocclusion": false,
+  "textures": {
+    "led": "xmaslights:item/led",
+    "particle": "xmaslights:item/led"
+  },
+  "elements": [
+    {
+      "name": "wrapped_led_0",
+      "from": [
+        0.76,
+        11.50171210667071,
+        9.309867901078613
+      ],
+      "to": [
+        1.24,
+        11.981712106670711,
+        9.789867901078614
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 0
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 0
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 0
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 0
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 0
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 0
+        }
+      },
+      "shade": false
+    },
+    {
+      "name": "wrapped_led_1",
+      "from": [
+        2.76,
+        9.309867901078613,
+        11.50171210667071
+      ],
+      "to": [
+        3.24,
+        9.789867901078614,
+        11.981712106670711
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 1
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 1
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 1
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 1
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 1
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 1
+        }
+      },
+      "shade": false
+    },
+    {
+      "name": "wrapped_led_2",
+      "from": [
+        4.76,
+        6.210132098921386,
+        11.50171210667071
+      ],
+      "to": [
+        5.24,
+        6.690132098921387,
+        11.981712106670711
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 2
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 2
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 2
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 2
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 2
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 2
+        }
+      },
+      "shade": false
+    },
+    {
+      "name": "wrapped_led_3",
+      "from": [
+        6.76,
+        4.018287893329289,
+        9.309867901078613
+      ],
+      "to": [
+        7.24,
+        4.498287893329289,
+        9.789867901078614
+      ],
+      "faces": {
+        "north": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 3
+        },
+        "south": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 3
+        },
+        "east": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 3
+        },
+        "west": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 3
+        },
+        "up": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 3
+        },
+        "down": {
+          "uv": [
+            0,
+            0,
+            16,
+            16
+          ],
+          "texture": "#led",
+          "tintindex": 3
+        }
+      },
+      "shade": false
+    }
+  ]
+}

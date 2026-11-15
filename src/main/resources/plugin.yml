@@ -1,0 +1,30 @@
+name: XmasLights
+version: '${project.version}'
+main: es.astralicastudio.xmaslights.XmasLightsPlugin
+api-version: '1.21.4'
+authors: [AstralicaStudio, MrDino]
+description: Hanging lights, wall outlines and lanterns with localized messages and safe upgrades.
+softdepend: [LucesNavidad, StrobeLights, TRPServerEdition, Nexo, DecoSwap]
+commands:
+  xmaslights:
+    description: XmasLights
+    aliases: [xl, xmas]
+permissions:
+  xmaslights.use:
+    description: Use kits and manage your own lights.
+    default: op
+  xmaslights.manage-all:
+    description: Manage all lights, legacy lights and assign owners.
+    default: op
+  xmaslights.manage-groups:
+    description: Manage shared groups.
+    default: op
+    children:
+      xmaslights.use: true
+  xmaslights.admin:
+    description: Give kits, reload configuration and save data.
+    default: op
+    children:
+      xmaslights.use: true
+      xmaslights.manage-all: true
+      xmaslights.manage-groups: true

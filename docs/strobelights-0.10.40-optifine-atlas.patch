@@ -1,0 +1,106 @@
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -3,7 +3,7 @@
+ }
+ 
+ group = "es.mrdino"
+-version = "0.10.39"
++version = "0.10.40"
+ 
+ repositories {
+     mavenCentral()
+--- a/resource-pack/pack.mcmeta
++++ b/resource-pack/pack.mcmeta
+@@ -1,6 +1,6 @@
+ {
+   "pack": {
+     "pack_format": 46,
+-    "description": "StrobeLights 0.10.39 - stable integration slots and native RGB - Paper 1.21.4"
++    "description": "StrobeLights 0.10.40 - OptiFine atlas compatible RGB - Paper 1.21.4"
+   }
+ }
+--- a/resource-pack/assets/strobelights/strobelights-integration.json
++++ b/resource-pack/assets/strobelights/strobelights-integration.json
+@@ -1,5 +1,6 @@
+ {
+-  "version": "0.10.39",
++  "version": "0.10.40",
++  "stable_source_optifine_atlas": true,
+   "stable_source_protocol": "slots3x3_depth_v1",
+   "render_pipeline": "light_painter_rgb",
+   "marker_protocol": "typed_bitgrid_3x3_v5",
+--- a/resource-pack/assets/strobelights/shaders/include/stable_slot_vertex.glsl
++++ b/resource-pack/assets/strobelights/shaders/include/stable_slot_vertex.glsl
+@@ -9,8 +9,14 @@
+     int value = (int(floor(colour.r * 255.0 + 0.5)) << 16)
+         | (int(floor(colour.g * 255.0 + 0.5)) << 8) | int(floor(colour.b * 255.0 + 0.5));
+     ivec4 texel = ivec4(floor(texture(carrierTexture, uv) * 255.0 + 0.5));
++    // OptiFine resizes atlas sprites through Java2D SRC_OVER. At alpha 5,
++    // premultiplication rounds (37,211,83) to (51,204,102), even with nearest
++    // filtering. Accept that exact signature too, as the native carrier does.
++    // Keep alpha and the encoded slot tag strict; this is not a colour tolerance.
++    bool carrierTexel = all(equal(texel, ivec4(37, 211, 83, 5)))
++        || all(equal(texel, ivec4(51, 204, 102, 5)));
+     if (abs(projection[2][3]) < 0.000001 || !strobeStableValue(value)
+-        || !all(equal(texel, ivec4(37, 211, 83, 5)))) return false;
++        || !carrierTexel) return false;
+     vec4 source = modelView * vec4(position, 1.0);
+     strobeStableViewPosition = vec3(source.x, source.y, -source.z);
+     strobeStablePayload = colour.rgb;
+--- a/src/main/java/es/mrdino/strobelights/resourcepack/ResourcePackService.java
++++ b/src/main/java/es/mrdino/strobelights/resourcepack/ResourcePackService.java
+@@ -53,7 +53,7 @@
+ /** Loads, hosts and sends the Light Painter shader and GUI icon resource pack. */
+ public final class ResourcePackService implements Listener {
+ 
+-    private static final String PACK_REVISION = "0.10.39";
++    private static final String PACK_REVISION = "0.10.40";
+     private static final String DEFAULT_PUBLIC_URL =
+         "http://serverip.com:8250/strobelights/{token}.zip";
+     private static final String EMBEDDED_PACK =
+--- a/src/test/java/es/mrdino/strobelights/resourcepack/ShaderPackContractTest.java
++++ b/src/test/java/es/mrdino/strobelights/resourcepack/ShaderPackContractTest.java
+@@ -55,7 +55,7 @@
+             "assets/strobelights/strobelights-integration.json"
+         );
+         assertTrue(Files.isRegularFile(integration));
+-        assertContains(integration, "\"version\": \"0.10.39\"");
++        assertContains(integration, "\"version\": \"0.10.40\"");
+         assertContains(integration, "\"render_pipeline\": \"light_painter_rgb\"");
+         assertContains(integration, "\"marker_protocol\": \"typed_bitgrid_3x3_v5\"");
+     }
+--- a/src/test/java/es/mrdino/strobelights/resourcepack/OptifineCarrierTest.java
++++ b/src/test/java/es/mrdino/strobelights/resourcepack/OptifineCarrierTest.java
+@@ -0,0 +1,32 @@
++package es.mrdino.strobelights.resourcepack;
++
++import java.awt.RenderingHints;
++import java.awt.image.BufferedImage;
++import java.nio.file.Files;
++import java.nio.file.Path;
++import javax.imageio.ImageIO;
++import org.junit.jupiter.api.Test;
++import static org.junit.jupiter.api.Assertions.*;
++
++class OptifineCarrierTest {
++    @Test void stableCarrierAcceptsBothOriginalAndClientResizedTexture() throws Exception {
++        Path pack = Path.of("resource-pack/assets/strobelights");
++        var source = ImageIO.read(pack.resolve("textures/item/internal/strobe_rgb_carrier.png").toFile());
++        String vertex = Files.readString(pack.resolve("shaders/include/stable_slot_vertex.glsl"));
++        assertEquals(0x0525D353, source.getRGB(0, 0));
++        assertTrue(vertex.contains("ivec4(37, 211, 83, 5)"));
++        // Same Java2D SRC_OVER preparation used by OptiFine J3 TextureUtils.scaleImage.
++        // A low-alpha solid texture changes RGB even under nearest-neighbour resizing.
++        for (int size : new int[] {16, 32, 64, 128}) {
++            var scaled = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
++            var graphics = scaled.createGraphics();
++            try {
++                graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
++                graphics.drawImage(source, 0, 0, size, size, null);
++            } finally { graphics.dispose(); }
++            assertEquals(0x0533CC66, scaled.getRGB(size / 2, size / 2));
++            assertTrue(vertex.contains("ivec4(51, 204, 102, 5)"), "Resized carrier must still be recognized");
++        }
++        assertTrue(vertex.contains("!strobeStableValue(value)"), "Ordinary items must remain excluded");
++    }
++}

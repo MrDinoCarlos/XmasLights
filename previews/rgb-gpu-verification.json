@@ -1,0 +1,206 @@
+{
+  "xmaslights_version": "2.8.6",
+  "minecraft_version": "1.21.4",
+  "stable_source_protocol": "slots3x3_depth_v1",
+  "hosts": {
+    "StrobeLights-0.10.40+mc.v.1.21.4.jar": "4342203a646768afc68934424307322d757e6b2fbf0dadfa2089254c310b8dbe",
+    "TRP-ServerEdition-0.4.19+mc.v.1.21.4.jar": "2ba635d3e72c21972015bc85021137d39b62fc87af1144acb7574533770c424a"
+  },
+  "host_tests": {
+    "strobelights": {
+      "tests": 76,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "trp": {
+      "tests": 310,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "gpu_cases": 720,
+  "profiles": [
+    {
+      "profile": "StrobeLights standalone",
+      "gpu": "NVIDIA GeForce RTX 3060/PCIe/SSE2",
+      "resolution": [
+        640,
+        360
+      ],
+      "cases": 240,
+      "far_plane": 1024.0,
+      "source_counts": [
+        32,
+        128
+      ],
+      "distances_blocks": [
+        8.0,
+        24.0,
+        48.0,
+        96.0,
+        192.0,
+        256.0,
+        480.0,
+        512.0,
+        680.0,
+        768.0
+      ],
+      "yaw_degrees": [
+        0,
+        45,
+        135,
+        240
+      ],
+      "fov_degrees": [
+        15,
+        70,
+        110
+      ],
+      "lighting_cases": 20,
+      "missing": 0,
+      "corrupt": 0,
+      "max_position_error_blocks": 0.0012054889987211936,
+      "compositor_packet_leaks": 0,
+      "occupied_item_layer": true,
+      "hybrid_pack_sha256": null
+    },
+    {
+      "profile": "TRP combined",
+      "gpu": "NVIDIA GeForce RTX 3060/PCIe/SSE2",
+      "resolution": [
+        1360,
+        768
+      ],
+      "cases": 240,
+      "far_plane": 2048.0,
+      "source_counts": [
+        32,
+        128
+      ],
+      "distances_blocks": [
+        8.0,
+        24.0,
+        48.0,
+        96.0,
+        192.0,
+        256.0,
+        480.0,
+        512.0,
+        680.0,
+        768.0
+      ],
+      "yaw_degrees": [
+        0,
+        45,
+        135,
+        240
+      ],
+      "fov_degrees": [
+        15,
+        70,
+        110
+      ],
+      "lighting_cases": 20,
+      "missing": 0,
+      "corrupt": 0,
+      "max_position_error_blocks": 0.0012054889987211936,
+      "compositor_packet_leaks": 0,
+      "occupied_item_layer": true,
+      "hybrid_pack_sha256": "6460cf584e14e357aa50e4e79ff837e06ada18228b31d6db890c9b71736dc2c0"
+    },
+    {
+      "profile": "TRP combined",
+      "gpu": "NVIDIA GeForce RTX 3060/PCIe/SSE2",
+      "resolution": [
+        854,
+        480
+      ],
+      "cases": 240,
+      "far_plane": 1920.0,
+      "source_counts": [
+        32,
+        128
+      ],
+      "distances_blocks": [
+        8.0,
+        24.0,
+        48.0,
+        96.0,
+        192.0,
+        256.0,
+        480.0,
+        512.0,
+        680.0,
+        768.0
+      ],
+      "yaw_degrees": [
+        0,
+        45,
+        135,
+        240
+      ],
+      "fov_degrees": [
+        15,
+        70,
+        110
+      ],
+      "lighting_cases": 20,
+      "missing": 0,
+      "corrupt": 0,
+      "max_position_error_blocks": 0.0012054889987211936,
+      "compositor_packet_leaks": 0,
+      "occupied_item_layer": true,
+      "hybrid_pack_sha256": "6460cf584e14e357aa50e4e79ff837e06ada18228b31d6db890c9b71736dc2c0"
+    }
+  ],
+  "optifine_gpu_cases": 480,
+  "optifine_profiles": [
+    {
+      "profile": "StrobeLights standalone",
+      "hybrid_pack_sha256": null,
+      "carrier_rgba": [
+        51,
+        204,
+        102,
+        5
+      ],
+      "cases": 240,
+      "lighting_cases": 20,
+      "missing": 0,
+      "corrupt": 0,
+      "compositor_packet_leaks": 0,
+      "gpu": "NVIDIA GeForce RTX 3060/PCIe/SSE2",
+      "resolution": [
+        640,
+        360
+      ],
+      "max_position_error_blocks": 0.0012054889987211936
+    },
+    {
+      "profile": "TRP combined",
+      "hybrid_pack_sha256": "6460cf584e14e357aa50e4e79ff837e06ada18228b31d6db890c9b71736dc2c0",
+      "carrier_rgba": [
+        51,
+        204,
+        102,
+        5
+      ],
+      "cases": 240,
+      "lighting_cases": 20,
+      "missing": 0,
+      "corrupt": 0,
+      "compositor_packet_leaks": 0,
+      "gpu": "NVIDIA GeForce RTX 3060/PCIe/SSE2",
+      "resolution": [
+        1360,
+        768
+      ],
+      "max_position_error_blocks": 0.0012054889987211936
+    }
+  ],
+  "scope": "Real GLSL transport, filtering, deduplication, six aggregation passes, RGB light passes to 768 blocks and Fabulous composition in synthetic OpenGL scenes.",
+  "client_acceptance": "Pending in Minecraft and the exact OptiFine installation. Fabulous and external shaderpacks disabled are required.",
+  "model_previews": "Blender geometry previews use simulated studio lighting."
+}

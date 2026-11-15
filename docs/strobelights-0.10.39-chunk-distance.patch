@@ -1,0 +1,300 @@
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -3,7 +3,7 @@
+ }
+ 
+ group = "es.mrdino"
+-version = "0.10.38"
++version = "0.10.39"
+ 
+ repositories {
+     mavenCentral()
+--- a/README.md
++++ b/README.md
+@@ -1,6 +1,10 @@
+ # StrobeLights — Paper 1.21.4
+ 
+-Version 0.10.38 adds independent, validated source slots for XmasLights 2.8.
++Version 0.10.39 extends the validated integration slots for XmasLights 2.8.5.
++Integration positions cover +/-1024 blocks, including diagonal 30/32-chunk views.
++Packets also preserve the actual camera depth projection, including the 30/32-chunk
++far planes. Their RGB energy no longer fades at the native strobe distance limit. Native
++strobes retain their existing range. The carrier item ABI remains slots3x3_depth_v1.
+ Dense strings no longer overlap their technical RGB pixels when viewed from
+ a distance. Position, color and radius are transmitted separately; the new
+ packets are removed during Fabulous composition, including over other models.
+--- a/resource-pack/assets/minecraft/shaders/post/aggregate_6.fsh
++++ b/resource-pack/assets/minecraft/shaders/post/aggregate_6.fsh
+@@ -169,6 +169,7 @@
+         bool stableSource = strobeStableMetadata(sampleColor.a);
+         float markerConversionK = conversionK;
+         int expansionCode = 3;
++        vec3 stableDepthA = vec3(0.0), stableDepthB = vec3(0.0);
+         if (!stableSource && isOffscreenLight(encodedValue)) {
+             int projectionCode = (encodedValue >> 16) & 15;
+             expansionCode = (encodedValue >> 12) & 15;
+@@ -187,6 +188,8 @@
+                 strobeStablePosition(texture(ItemEntitySampler, center + vec2(-1.0, 0.0) * pixelSize).rgb));
+             ivec3 projectionBytes = ivec3(floor(texture(ItemEntitySampler, center + vec2(1.0, 0.0) * pixelSize).rgb * 255.0 + 0.5));
+             projectionCode16 = (projectionBytes.r << 8) | projectionBytes.g;
++            stableDepthA = texture(ItemEntitySampler, center + vec2(0.0, 1.0) * pixelSize).rgb;
++            stableDepthB = texture(ItemEntitySampler, center + vec2(1.0, 1.0) * pixelSize).rgb;
+             expansionCode = (encodedValue >> 16) & 15;
+         } else if (isOffscreenLight(encodedValue)) {
+             bool trpLight = sampleColor.a > 0.0 && sampleColor.a < 0.5;
+@@ -204,11 +207,13 @@
+         } else if (pos.y == 3.0) {
+             outColor = sampleColor;
+         } else if (pos.y == 4.0) {
+-            outColor = vec4(float(expansionCode) / 15.0, 0.0, 0.0, 1.0);
++            outColor = stableSource ? vec4(float(expansionCode) / 15.0, stableDepthA)
++                : vec4(float(expansionCode) / 15.0, 0.0, 0.0, 1.0);
+         } else if (pos.y == 5.0) {
+             // 1.0 identifies a native StrobeLights emitter. TRP stores
+             // (radiusLowNibble + 1) / 255 here.
+-            outColor = vec4(sampleColor.a, 0.0, 0.0, 1.0);
++            outColor = stableSource ? vec4(sampleColor.a, stableDepthB)
++                : vec4(sampleColor.a, 0.0, 0.0, 1.0);
+         } else {
+             outColor = vec4(float((projectionCode16 >> 8) & 255),
+                 float(projectionCode16 & 255), 0.0, 255.0) / 255.0;
+--- a/resource-pack/assets/minecraft/shaders/post/light.fsh
++++ b/resource-pack/assets/minecraft/shaders/post/light.fsh
+@@ -196,8 +196,9 @@
+ 
+ void main() {
+     outColor = vec4(0.0);
+-    float depth = LinearizeDepth(texture(DiffuseDepthSampler, texCoord).r);
+-    if (depth < Range + 64.0) {
++    float rawDepth = texture(DiffuseDepthSampler, texCoord).r;
++    float depth = LinearizeDepth(rawDepth);
++    if (depth < max(Range + 64.0, STROBE_STABLE_POSITION_LIMIT)) {
+         vec4 aggColor = vec4(0.0, 0.0, 0.0, 1.0);
+ 
+         vec2 pixCoord = texCoord;
+@@ -209,14 +210,10 @@
+             vec4 zvec = texture(LightsSampler, (vec2(float(i), 2.0) + 0.5) * oneTexelAux1);
+             vec3 lightWorldCoord = vec3(decodeInt(xvec), decodeInt(yvec), decodeInt(zvec)) / FIXEDPOINT;
+             vec3 lightColor = texture(LightsSampler, (vec2(float(i), 3.0) + 0.5) * oneTexelAux1).rgb;
+-            int expansionCode = int(floor(texture(
+-                LightsSampler,
+-                (vec2(float(i), 4.0) + 0.5) * oneTexelAux1
+-            ).r * 15.0 + 0.5));
+-            float sourceMetadata = texture(
+-                LightsSampler,
+-                (vec2(float(i), 5.0) + 0.5) * oneTexelAux1
+-            ).r;
++            vec4 radiusData = texture(LightsSampler, (vec2(float(i), 4.0) + 0.5) * oneTexelAux1);
++            vec4 sourceData = texture(LightsSampler, (vec2(float(i), 5.0) + 0.5) * oneTexelAux1);
++            int expansionCode = int(floor(radiusData.r * 15.0 + 0.5));
++            float sourceMetadata = sourceData.r;
+             bool trpLight = sourceMetadata > 0.0 && sourceMetadata < 0.5;
+             int encodedValue = markerValue(lightColor);
+             if (isCameraFlash(encodedValue)) {
+@@ -245,9 +242,11 @@
+             }
+             bool geometryOcclusion = trpLight
+                 || (!stableSource && hasGeometryOcclusionToken(lightWorldCoord));
++            float sourceDepth = stableSource
++                ? strobeStableLinearizeDepth(rawDepth, radiusData.gba, sourceData.gba) : depth;
+             vec3 worldCoord = vec3(
+-                screenCoord * markerConversionK * depth,
+-                depth
++                screenCoord * markerConversionK * sourceDepth,
++                sourceDepth
+             );
+             float encodedIntensity = clamp(
+                 max(max(lightColor.r, lightColor.g), lightColor.b),
+@@ -290,7 +289,8 @@
+             }
+             float lightDist = length(worldCoord - lightWorldCoord);
+             if (lightDist < lightRadius) {
+-                float rangeFade = clamp(Range - length(lightWorldCoord), 0.0, 6.0) / 6.0;
++                // Integration sources follow sent chunks; native strobes retain their own range.
++                float rangeFade = stableSource ? 1.0 : clamp(Range - length(lightWorldCoord), 0.0, 6.0) / 6.0;
+                 float radialFalloff = pow(
+                     clamp(1.0 - lightDist / lightRadius, 0.0, 1.0),
+                     falloffPower
+--- a/resource-pack/assets/minecraft/shaders/post/light_t.fsh
++++ b/resource-pack/assets/minecraft/shaders/post/light_t.fsh
+@@ -199,7 +199,7 @@
+     float oDepth = texture(DiffuseDepthSampler, texCoord).r;
+     float compDepth = texture(CompareDepthSampler, texCoord).r;
+     float depth = LinearizeDepth(oDepth);
+-    if (oDepth < compDepth && depth < Range + 64.0) {
++    if (oDepth < compDepth && depth < max(Range + 64.0, STROBE_STABLE_POSITION_LIMIT)) {
+         vec4 aggColor = vec4(0.0, 0.0, 0.0, 1.0);
+ 
+         vec2 pixCoord = texCoord;
+@@ -211,14 +211,10 @@
+             vec4 zvec = texture(LightsSampler, (vec2(float(i), 2.0) + 0.5) * oneTexelAux1);
+             vec3 lightWorldCoord = vec3(decodeInt(xvec), decodeInt(yvec), decodeInt(zvec)) / FIXEDPOINT;
+             vec3 lightColor = texture(LightsSampler, (vec2(float(i), 3.0) + 0.5) * oneTexelAux1).rgb;
+-            int expansionCode = int(floor(texture(
+-                LightsSampler,
+-                (vec2(float(i), 4.0) + 0.5) * oneTexelAux1
+-            ).r * 15.0 + 0.5));
+-            float sourceMetadata = texture(
+-                LightsSampler,
+-                (vec2(float(i), 5.0) + 0.5) * oneTexelAux1
+-            ).r;
++            vec4 radiusData = texture(LightsSampler, (vec2(float(i), 4.0) + 0.5) * oneTexelAux1);
++            vec4 sourceData = texture(LightsSampler, (vec2(float(i), 5.0) + 0.5) * oneTexelAux1);
++            int expansionCode = int(floor(radiusData.r * 15.0 + 0.5));
++            float sourceMetadata = sourceData.r;
+             bool trpLight = sourceMetadata > 0.0 && sourceMetadata < 0.5;
+             int encodedValue = markerValue(lightColor);
+             if (isCameraFlash(encodedValue)) {
+@@ -247,9 +243,11 @@
+             }
+             bool geometryOcclusion = trpLight
+                 || (!stableSource && hasGeometryOcclusionToken(lightWorldCoord));
++            float sourceDepth = stableSource
++                ? strobeStableLinearizeDepth(oDepth, radiusData.gba, sourceData.gba) : depth;
+             vec3 worldCoord = vec3(
+-                screenCoord * markerConversionK * depth,
+-                depth
++                screenCoord * markerConversionK * sourceDepth,
++                sourceDepth
+             );
+             float encodedIntensity = clamp(
+                 max(max(lightColor.r, lightColor.g), lightColor.b),
+@@ -292,7 +290,8 @@
+             }
+             float lightDist = length(worldCoord - lightWorldCoord);
+             if (lightDist < lightRadius) {
+-                float rangeFade = clamp(Range - length(lightWorldCoord), 0.0, 6.0) / 6.0;
++                // Integration sources follow sent chunks; native strobes retain their own range.
++                float rangeFade = stableSource ? 1.0 : clamp(Range - length(lightWorldCoord), 0.0, 6.0) / 6.0;
+                 float radialFalloff = pow(
+                     clamp(1.0 - lightDist / lightRadius, 0.0, 1.0),
+                     falloffPower
+--- a/resource-pack/assets/strobelights/shaders/include/stable_slot_common.glsl
++++ b/resource-pack/assets/strobelights/shaders/include/stable_slot_common.glsl
+@@ -1,6 +1,8 @@
+ // STROBE_STABLE_SLOT_V1: collision-free, backwards-compatible integration sources.
+ #ifndef STROBE_STABLE_SLOT_COMMON
+ #define STROBE_STABLE_SLOT_COMMON
++// Covers 32 sent chunks in every direction, including diagonals and camera rotation.
++const float STROBE_STABLE_POSITION_LIMIT = 1024.0;
+ bool strobeStableValue(int value) {
+     int bank = (value >> 20) & 15;
+     return bank == 6 || bank == 7 || bank == 8 || bank == 9
+@@ -35,13 +37,24 @@
+     int tag = bank == 0 ? 8 : bank == 1 ? 9 : bank == 2 ? 11 : bank == 3 ? 12 : bank == 4 ? 14 : bank == 5 ? 15 : bank == 6 ? 6 : 7;
+     return (tag << 20) | (((value >> 19) & 15) << 16) | ((slot & 15) << 12) | (value & 4095);
+ }
+-float strobeStablePosition(vec3 colour) { return float(strobeStableInteger(colour)) / 4096.0 - 512.0; }
+-vec3 strobeStablePacketColour(int index, int value, int projection, vec3 position) {
++float strobeStablePosition(vec3 colour) { return float(strobeStableInteger(colour)) / 4096.0 - STROBE_STABLE_POSITION_LIMIT; }
++// Preserve the actual depth projection. Minecraft's far plane changes with
++// render distance; reconstructing all clients with FAR=1024 moves distant light.
++ivec2 strobeStableDepthProjection(mat4 projection) {
++    return ivec2(int(floor((-projection[2][2] - 1.0) * 8388608.0 + 0.5)),
++                 int(abs(projection[3][2]) * 134217728.0));
++}
++float strobeStableLinearizeDepth(float depth, vec3 depthA, vec3 depthB) {
++    float a = -1.0 - float(strobeStableInteger(depthA)) / 8388608.0;
++    float b = -float(strobeStableInteger(depthB)) / 134217728.0;
++    return b / (depth * 2.0 - 1.0 + a);
++}
++vec3 strobeStablePacketColour(int index, int value, int projection, vec3 position, ivec2 depthProjection) {
+     if (index == 0) return strobeStableBytes(strobeStablePacketValue(value));
+-    if (index >= 1 && index <= 3) return strobeStableBytes(int(floor((clamp(position[index - 1], -512.0, 512.0) + 512.0) * 4096.0 + 0.5)));
++    if (index >= 1 && index <= 3) return strobeStableBytes(int(floor((clamp(position[index - 1], -STROBE_STABLE_POSITION_LIMIT, STROBE_STABLE_POSITION_LIMIT) + STROBE_STABLE_POSITION_LIMIT) * 4096.0 + 0.5)));
+     if (index == 4) return vec3(float((projection >> 8) & 255), float(projection & 255), 197.0) / 255.0;
+-    if (index == 5) return strobeStableBytes((strobeStablePacketValue(value) ^ (projection << 7) ^ 0x5AC3A5) & 0x7FFFFF);
+-    return index == 6 ? vec3(71.0, 163.0, 247.0) / 255.0 : vec3(109.0, 193.0, 37.0) / 255.0;
++    if (index == 5) return strobeStableBytes((strobeStablePacketValue(value) ^ (projection << 7) ^ depthProjection.x ^ depthProjection.y ^ 0x5AC3A5) & 0x7FFFFF);
++    return strobeStableBytes(index == 6 ? depthProjection.x : depthProjection.y);
+ }
+ vec3 strobeStableColor(int value) {
+     return vec3(float((value >> 8) & 15), float((value >> 4) & 15), float(value & 15)) / 15.0;
+--- a/resource-pack/assets/strobelights/shaders/include/stable_slot_fragment.glsl
++++ b/resource-pack/assets/strobelights/shaders/include/stable_slot_fragment.glsl
+@@ -21,6 +21,6 @@
+     } else {
+         int index = cellIndex < 4 ? cellIndex : cellIndex - 1;
+         int projectionCode = strobeStableProjectionK(2.0 / max(abs(projection[1][1]), 0.0001));
+-        outputColour = vec4(strobeStablePacketColour(index, value, projectionCode, strobeStableViewPosition), 1.0);
++        outputColour = vec4(strobeStablePacketColour(index, value, projectionCode, strobeStableViewPosition, strobeStableDepthProjection(projection)), 1.0);
+     }
+ }
+--- a/resource-pack/assets/strobelights/shaders/include/stable_slot_packet.glsl
++++ b/resource-pack/assets/strobelights/shaders/include/stable_slot_packet.glsl
+@@ -11,15 +11,20 @@
+     ivec4 projectionBytes = strobeStableTexel(image, center + vec2(1.0, 0.0) * pixel);
+     if (!strobeStableValue(value) || projectionBytes.b != 197 || projectionBytes.a != 255) return false;
+     int projection = (projectionBytes.r << 8) | projectionBytes.g;
++    ivec2 depthProjection = ivec2(
++        strobeStableInteger(texture(image, center + vec2(0.0, 1.0) * pixel).rgb),
++        strobeStableInteger(texture(image, center + vec2(1.0, 1.0) * pixel).rgb));
++    if (depthProjection.x <= 0 || depthProjection.x > 32768
++        || depthProjection.y < 6000000 || depthProjection.y >= 15625000) return false;
+     int index = 0;
+     for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) {
+         if (x == 0 && y == 0) continue;
+         ivec4 sampleBytes = strobeStableTexel(image, center + vec2(float(x), float(y)) * pixel);
+         if (sampleBytes.a != 255) return false;
+         if (index >= 1 && index <= 3) {
+-            if (sampleBytes.r * 62500 + sampleBytes.g * 250 + sampleBytes.b > 4194304) return false;
++            if (sampleBytes.r * 62500 + sampleBytes.g * 250 + sampleBytes.b > int(STROBE_STABLE_POSITION_LIMIT * 8192.0)) return false;
+         } else {
+-            ivec3 expected = ivec3(floor(strobeStablePacketColour(index, value, projection, vec3(0.0)) * 255.0 + 0.5));
++            ivec3 expected = ivec3(floor(strobeStablePacketColour(index, value, projection, vec3(0.0), depthProjection) * 255.0 + 0.5));
+             if (!all(equal(sampleBytes.rgb, expected))) return false;
+         }
+         index++;
+--- a/resource-pack/assets/strobelights/strobelights-integration.json
++++ b/resource-pack/assets/strobelights/strobelights-integration.json
+@@ -1,6 +1,7 @@
+ {
+-  "version": "0.10.38",
++  "version": "0.10.39",
+   "stable_source_protocol": "slots3x3_depth_v1",
+   "render_pipeline": "light_painter_rgb",
+-  "marker_protocol": "typed_bitgrid_3x3_v5"
++  "marker_protocol": "typed_bitgrid_3x3_v5",
++  "stable_source_coordinate_limit": 1024
+ }
+--- a/resource-pack/pack.mcmeta
++++ b/resource-pack/pack.mcmeta
+@@ -1,6 +1,6 @@
+ {
+   "pack": {
+     "pack_format": 46,
+-    "description": "StrobeLights 0.10.38 - stable integration slots and native RGB - Paper 1.21.4"
++    "description": "StrobeLights 0.10.39 - stable integration slots and native RGB - Paper 1.21.4"
+   }
+ }
+--- a/src/main/java/es/mrdino/strobelights/resourcepack/ResourcePackService.java
++++ b/src/main/java/es/mrdino/strobelights/resourcepack/ResourcePackService.java
+@@ -53,7 +53,7 @@
+ /** Loads, hosts and sends the Light Painter shader and GUI icon resource pack. */
+ public final class ResourcePackService implements Listener {
+ 
+-    private static final String PACK_REVISION = "0.10.38";
++    private static final String PACK_REVISION = "0.10.39";
+     private static final String DEFAULT_PUBLIC_URL =
+         "http://serverip.com:8250/strobelights/{token}.zip";
+     private static final String EMBEDDED_PACK =
+--- a/src/test/java/es/mrdino/strobelights/resourcepack/ShaderPackContractTest.java
++++ b/src/test/java/es/mrdino/strobelights/resourcepack/ShaderPackContractTest.java
+@@ -55,7 +55,7 @@
+             "assets/strobelights/strobelights-integration.json"
+         );
+         assertTrue(Files.isRegularFile(integration));
+-        assertContains(integration, "\"version\": \"0.10.38\"");
++        assertContains(integration, "\"version\": \"0.10.39\"");
+         assertContains(integration, "\"render_pipeline\": \"light_painter_rgb\"");
+         assertContains(integration, "\"marker_protocol\": \"typed_bitgrid_3x3_v5\"");
+     }
+@@ -399,7 +399,7 @@
+             assertContains(shader, "if (mode == 4)");
+             assertContains(shader, "if (mode == 5)");
+             assertContains(shader, "float markerConversionK = decodeExactProjectionK(");
+-            assertContains(shader, "screenCoord * markerConversionK * depth");
++            assertContains(shader, "screenCoord * markerConversionK * sourceDepth");
+             assertNotContains(shader, "return color * intensity");
+             assertContains(shader, "if (lightDist < lightRadius");
+             assertNotContains(shader, "edgeFade");

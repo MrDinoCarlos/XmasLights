@@ -1,0 +1,694 @@
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -1,7 +1,7 @@
+ plugins { java }
+ 
+ group = "es.mrdino"
+-version = "0.1.17"
++version = "0.1.18"
+ 
+ repositories {
+     mavenCentral()
+--- a/README.md
++++ b/README.md
+@@ -1,10 +1,13 @@
+ # DecoSwap
+ 
+-DecoSwap 0.1.17 is a Paper plugin for capturing exact blocks and entities as reusable Decorations, organizing them into Groups, and deploying them with a fresh rollback Snapshot. Separate runtime exports target Paper 1.21.4–1.21.11, 26.1.x, 26.2.x, and 26.3.x.
++DecoSwap 0.1.18 is a Paper plugin for capturing exact blocks and entities as reusable Decorations, organizing them into Groups, and deploying them with a fresh rollback Snapshot. Separate runtime exports target Paper 1.21.4–1.21.11, 26.1.x, 26.2.x, and 26.3.x.
+ 
+ Created by [MrDinoCarlos](https://github.com/MrDinoCarlos) · [mrdino.es](https://mrdino.es/) · [GitHub](https://github.com/MrDinoCarlos)
+ 
+ ## Requirements
++
++XmasLights 2.7+ is an optional integration. Selecting one visible light part captures its entire segment with its logical state. Placement creates independent, animated copies and supports rotation, regeneration and rollback. RGB carriers and owned native LIGHT blocks remain temporary effects. Both plugins must be updated to preserve working lights; older templates containing only XmasLights displays must be saved again. No extra controller entity or hard dependency is added.
++
+ 
+ - The export matching your Paper family: 1.21.4–1.21.11, 26.1.x, 26.2.x, or 26.3.x
+ - Java 21+ for the 1.21 export; Java 25+ for the 26.x exports
+--- a/src/main/java/es/mrdino/decoswap/command/DecoSwapCommand.java
++++ b/src/main/java/es/mrdino/decoswap/command/DecoSwapCommand.java
+@@ -1234,7 +1234,7 @@
+     else {
+       String message = x.getMessage();
+       if (message != null
+-          && Set.of("busy", "active", "not-active", "no-selection", "no-anchor", "selection-world")
++          && Set.of("busy", "active", "not-active", "no-selection", "no-anchor", "selection-world", "xmaslights-required", "xmaslights-resave", "xmaslights-invalid", "selection-limit")
+               .contains(message)) lang.send(sender, "error." + message);
+       else if (message != null && message.startsWith("world-missing:"))
+         lang.send(sender, "error.world-missing", Map.of("world", message.substring(14)));
+--- a/src/main/java/es/mrdino/decoswap/decoration/DecorationService.java
++++ b/src/main/java/es/mrdino/decoswap/decoration/DecorationService.java
+@@ -1,6 +1,7 @@
+ package es.mrdino.decoswap.decoration;
+ 
+ import es.mrdino.decoswap.DecoSwapPlugin;
++import es.mrdino.decoswap.compat.XmasLightsIntegration;
+ import es.mrdino.decoswap.selection.PlayerSelection;
+ import es.mrdino.decoswap.serialization.block.BlockSerializerRegistry;
+ import es.mrdino.decoswap.serialization.entity.EntitySerializerRegistry;
+@@ -44,9 +45,11 @@
+             : existing != null ? existing.homeAnchor() : Anchor.from(player.getLocation());
+     World world = Bukkit.getWorld(anchor.worldId());
+     if (world == null) throw new IllegalStateException("world-missing:" + anchor.worldName());
++    XmasLightsIntegration.expand(selection, player, plugin.getConfig().getInt("selection.max-entities", 10000));
+     List<BlockRecord> blockRecords = new ArrayList<>();
+     for (BlockKey key : selection.blocks()) {
+       if (!key.worldId().equals(world.getUID())) throw new IllegalStateException("selection-world");
++      if (XmasLightsIntegration.originalBlock(world.getBlockAt(key.x(), key.y(), key.z())) != null) continue;
+       blockRecords.add(
+           blocks.captureTemplate(
+               world.getBlockAt(key.x(), key.y(), key.z()),
+@@ -347,6 +350,7 @@
+   }
+ 
+   public void removeSelected(Player player, PlayerSelection selection) {
++    XmasLightsIntegration.remove(selection.entities(), player);
+     for (UUID id : new ArrayList<>(selection.entities())) {
+       Entity e = Bukkit.getEntity(id);
+       if (DecorationEntities.isCapturable(e)) e.remove();
+@@ -359,6 +363,7 @@
+   }
+ 
+   public void removeSelected(Set<BlockKey> selectedBlocks, Set<UUID> selectedEntities) {
++    XmasLightsIntegration.remove(selectedEntities, null);
+     for (UUID id : selectedEntities) {
+       Entity e = Bukkit.getEntity(id);
+       if (DecorationEntities.isCapturable(e)) e.remove();
+@@ -414,14 +419,14 @@
+         if (DecorationEntities.isCapturable(candidate)
+             && candidate.getWorld() == world
+             && !used.contains(id)
+-            && (expectedType == null || candidate.getType() == expectedType)
++            && XmasLightsIntegration.matches(expected, candidate, expectedType)
+             && belongsToDecoration(candidate, decoration.uuid()))
+           candidates.add(candidate);
+       }
+       for (Entity candidate : world.getNearbyEntities(expectedLocation, 4, 4, 4))
+         if (DecorationEntities.isCapturable(candidate)
+             && !used.contains(candidate.getUniqueId())
+-            && (expectedType == null || candidate.getType() == expectedType)
++            && XmasLightsIntegration.matches(expected, candidate, expectedType)
+             && belongsToDecoration(candidate, decoration.uuid())
+             && candidates.stream().noneMatch(e -> e.getUniqueId().equals(candidate.getUniqueId())))
+           candidates.add(candidate);
+@@ -513,13 +518,13 @@
+       if (DecorationEntities.isCapturable(candidate)
+           && candidate.getWorld() == world
+           && !used.contains(id)
+-          && (expectedType == null || candidate.getType() == expectedType)
++          && XmasLightsIntegration.matches(expected, candidate, expectedType)
+           && belongsToDecoration(candidate, decorationId)) candidates.add(candidate);
+     }
+     for (Entity candidate : world.getNearbyEntities(expectedLocation, 4, 4, 4))
+       if (DecorationEntities.isCapturable(candidate)
+           && !used.contains(candidate.getUniqueId())
+-          && (expectedType == null || candidate.getType() == expectedType)
++          && XmasLightsIntegration.matches(expected, candidate, expectedType)
+           && belongsToDecoration(candidate, decorationId)
+           && candidates.stream().noneMatch(e -> e.getUniqueId().equals(candidate.getUniqueId())))
+         candidates.add(candidate);
+--- a/src/main/java/es/mrdino/decoswap/DecoSwapPlugin.java
++++ b/src/main/java/es/mrdino/decoswap/DecoSwapPlugin.java
+@@ -170,6 +170,17 @@
+   public PluginConfig settings() {
+     return settings;
+   }
++  /** Optional renderer integrations rebind their regenerated entities in the durable journal. */
++  public boolean syncExternalDeployment(java.util.UUID id, java.util.Set<Integer> managedIds) {
++    return deployments != null && deployments.syncExternalDeployment(id, managedIds);
++  }
++  public boolean hasExternalDeployment(java.util.UUID id) {
++    return deployments != null && (deployments.active().stream().anyMatch(d -> d.id().equals(id))
++        || deployments.recovery().stream().anyMatch(e -> e.id().equals(id)));
++  }
++  public String externalDeploymentState(java.util.UUID id) {
++    return deployments == null ? "LIVE" : deployments.externalDeploymentState(id);
++  }
+ 
+   private void saveIfMissing(String resource) {
+     File file = new File(getDataFolder(), resource);
+--- a/src/main/java/es/mrdino/decoswap/deployment/DeploymentEngine.java
++++ b/src/main/java/es/mrdino/decoswap/deployment/DeploymentEngine.java
+@@ -1,6 +1,7 @@
+ package es.mrdino.decoswap.deployment;
+ 
+ import es.mrdino.decoswap.DecoSwapPlugin;
++import es.mrdino.decoswap.compat.XmasLightsIntegration;
+ import es.mrdino.decoswap.api.event.*;
+ import es.mrdino.decoswap.config.PluginConfig;
+ import es.mrdino.decoswap.decoration.*;
+@@ -100,6 +101,42 @@
+ 
+   public Collection<Deployment> active() {
+     return List.copyOf(active.values());
++  }
++
++  public boolean syncExternalDeployment(UUID id, Set<Integer> managedIds) {
++    if (!Bukkit.isPrimaryThread()) throw new IllegalStateException("Server thread required");
++    Deployment deployment = active.get(id);
++    if (deployment == null || busyDecorations.contains(deployment.decorationId())) return false;
++    reconcileExternalEntities(deployment, managedIds);
++    try { persistRequired(deployment, "DEPLOY", ""); }
++    catch (IOException failure) { throw new IllegalStateException("Could not persist regenerated entities", failure); }
++    return true;
++  }
++  public String externalDeploymentState(UUID id) {
++    if (active.containsKey(id) || recovery.containsKey(id)) return "LIVE";
++    return journal.retained(id) ? "RETAINED" : "REMOVED";
++  }
++
++  private void reconcileExternalEntities(Deployment deployment, Set<Integer> managedIds) {
++    World world = Bukkit.getWorld(deployment.target().worldId());
++    if (world == null) throw new IllegalStateException("world-missing:" + deployment.target().worldName());
++    Map<Integer, UUID> entities = new LinkedHashMap<>(deployment.spawnedEntities());
++    managedIds.forEach(entities::remove);
++    Set<BlockKey> locations = new LinkedHashSet<>(deployment.entityLocations());
++    int next = -1;
++    for (Entity entity : world.getEntities()) {
++      var data = entity.getPersistentDataContainer();
++      if (!deployment.id().toString().equals(data.get(DecoSwapPlugin.DEPLOYMENT_ID_KEY, PersistentDataType.STRING))
++          || !XmasLightsIntegration.managed(entity)) continue;
++      Integer local = data.get(DecoSwapPlugin.LOCAL_ENTITY_ID_KEY, PersistentDataType.INTEGER);
++      if (local == null || entities.containsKey(local) && !entities.get(local).equals(entity.getUniqueId())) {
++        while (entities.containsKey(next) || managedIds.contains(next)) next--;
++        local = next--;
++        data.set(DecoSwapPlugin.LOCAL_ENTITY_ID_KEY, PersistentDataType.INTEGER, local);
++      }
++      entities.put(local, entity.getUniqueId()); locations.add(BlockKey.of(entity.getLocation()));
++    }
++    deployment.replaceSpawned(entities); deployment.replaceEntityLocations(locations);
+   }
+ 
+   public Collection<TransactionJournal.Entry> recovery() {
+@@ -521,6 +558,8 @@
+         .filter(d -> detached.stream().noneMatch(existing -> existing.id().equals(d.id())))
+         .forEach(detached::add);
+     for (Deployment deployment : detached) {
++      journal.markRetained(deployment.id());
++      XmasLightsIntegration.detach(deployment.id());
+       World world = Bukkit.getWorld(deployment.target().worldId());
+       for (UUID entityId : deployment.spawnedEntities().values()) {
+         Entity entity = Bukkit.getEntity(entityId);
+@@ -644,7 +683,12 @@
+       List<BlockKey> entityLocations = entityLocations(decoration, target, rotation);
+       Set<BlockKey> chunkLocations = new LinkedHashSet<>(targets.stream().map(TargetBlock::key).toList());
+       chunkLocations.addAll(entityLocations);
++      if (decoration.entities().stream().anyMatch(e -> e.items().containsKey(XmasLightsIntegration.STATE))) {
++        for (BlockKey location : entityLocations) for (int x : new int[]{-3, 3}) for (int z : new int[]{-3, 3})
++          chunkLocations.add(new BlockKey(location.worldId(), location.x() + x, location.y(), location.z() + z));
++      }
+       tickets.addAll(loadChunks(world, chunkLocations));
++      XmasLightsIntegration.validate(decoration, target, rotation, actor == null ? null : actor.getUniqueId());
+       UUID id = UUID.randomUUID();
+       Deployment deployment =
+           new Deployment(
+@@ -767,13 +811,13 @@
+           while (ei < decoration.entities().size() && entities-- > 0) {
+             EntityRecord record = decoration.entities().get(ei++);
+             Entity entity =
+-                entityCodec.spawn(
++                record.items().containsKey(XmasLightsIntegration.STATE) ? entityCodec.spawn(
+                     record,
+                     world,
+                     deployment.target(),
+                     deployment.rotation(),
+                     deployment.decorationId(),
+-                    deployment.id());
++                    deployment.id(), deployment.actor()) : entityCodec.spawn(record, world, deployment.target(), deployment.rotation(), deployment.decorationId(), deployment.id());
+             spawned.put(record.localId(), entity);
+             deployment.spawned(record.localId(), entity.getUniqueId());
+             progress(
+@@ -797,6 +841,13 @@
+               Entity holder = spawned.get(r.leashHolder());
+               if (holder != null) leashable.setLeashHolder(holder);
+             }
++          }
++          boolean managedLights = decoration.entities().stream().anyMatch(e -> e.items().containsKey(XmasLightsIntegration.STATE));
++          if (managedLights) {
++            XmasLightsIntegration.finish(deployment, true);
++            Set<Integer> managedIds = new HashSet<>();
++            for (EntityRecord record : decoration.entities()) if (record.items().containsKey(XmasLightsIntegration.STATE)) managedIds.add(record.localId());
++            reconcileExternalEntities(deployment, managedIds);
+           }
+           deployment.state(TransactionState.ACTIVE);
+           persistRequired(deployment, "DEPLOY", "");
+@@ -922,13 +973,16 @@
+                           }
+                           deployment.state(TransactionState.RESTORING);
+                           persistRequired(deployment, "RESTORE", "");
++                          Set<UUID> managedRemoved = new HashSet<>();
++                          for (UUID id : deployment.spawnedEntities().values()) if (XmasLightsIntegration.managed(Bukkit.getEntity(id))) managedRemoved.add(id);
++                          XmasLightsIntegration.release(deployment.id());
+                           Set<BlockKey> skip =
+                               policy == ConflictPolicy.WARN_AND_SKIP ? Set.copyOf(conflicts) : Set.of();
+                           int missing = 0;
+                           for (UUID id : deployment.spawnedEntities().values()) {
+                             Entity entity = Bukkit.getEntity(id);
+                             if (entity != null) entity.remove();
+-                            else missing++;
++                            else if (!managedRemoved.contains(id)) missing++;
+                           }
+                           for (Entity entity : new ArrayList<>(world.getEntities())) {
+                             String owner =
+@@ -985,6 +1039,7 @@
+           if (index < before.size()) return;
+           d.state(TransactionState.COMMITTED);
+           persistRequired(d, "RESTORE", "");
++          journal.clearRetained(d.id());
+           active.remove(d.id());
+           details.remove(d.id());
+           recovery.remove(d.id());
+@@ -1034,6 +1089,7 @@
+     TransactionJournal.Entry e = recovery.get(id);
+     if (e == null || busyDecorations.contains(e.deployment().decorationId())) return false;
+     Deployment d = e.deployment();
++    journal.markRetained(id);
+     d.state(TransactionState.COMMITTED);
+     try {
+       persistRequired(d, "ACCEPT", "Current world state accepted");
+@@ -1043,6 +1099,7 @@
+       plugin.getLogger().log(Level.SEVERE, "Could not accept transaction " + id, error);
+       return false;
+     }
++    XmasLightsIntegration.detach(id);
+     active.remove(id);
+     details.remove(id);
+     recovery.remove(id);
+@@ -1123,6 +1180,8 @@
+ 
+   private void failOperation(Deployment deployment, String type, Exception error,
+       Player actor, BossBar bar, Collection<Chunk> tickets, CompletableFuture<?> future) {
++    if ("DEPLOY".equals(type)) try { XmasLightsIntegration.release(deployment.id()); }
++    catch (RuntimeException cleanup) { if (cleanup != error) error.addSuppressed(cleanup); }
+     deployment.state(TransactionState.RECOVERY_REQUIRED);
+     active.remove(deployment.id());
+     deployment.expectedBlocks().keySet().forEach(key -> addOwner(key, deployment.id()));
+--- a/src/main/java/es/mrdino/decoswap/serialization/block/BlockSerializerRegistry.java
++++ b/src/main/java/es/mrdino/decoswap/serialization/block/BlockSerializerRegistry.java
+@@ -1,6 +1,7 @@
+ package es.mrdino.decoswap.serialization.block;
+ 
+ import es.mrdino.decoswap.config.PluginConfig;
++import es.mrdino.decoswap.compat.XmasLightsIntegration;
+ import es.mrdino.decoswap.decoration.Anchor;
+ import es.mrdino.decoswap.decoration.BlockRecord;
+ import java.util.*;
+@@ -52,6 +53,9 @@
+   }
+ 
+   public BlockRecord capture(Block block, Anchor anchor) throws Exception {
++    String original = XmasLightsIntegration.originalBlock(block);
++    if (original != null) return new BlockRecord(block.getX() - (int)Math.floor(anchor.x()),
++        block.getY() - (int)Math.floor(anchor.y()), block.getZ() - (int)Math.floor(anchor.z()), original, new byte[0], Map.of(), Map.of());
+     BlockState state = block.getState();
+     Map<String, String> properties = new LinkedHashMap<>();
+     Map<Integer, byte[]> items = new LinkedHashMap<>();
+--- a/src/main/java/es/mrdino/decoswap/serialization/entity/EntitySerializerRegistry.java
++++ b/src/main/java/es/mrdino/decoswap/serialization/entity/EntitySerializerRegistry.java
+@@ -1,6 +1,7 @@
+ package es.mrdino.decoswap.serialization.entity;
+ 
+ import es.mrdino.decoswap.DecoSwapPlugin;
++import es.mrdino.decoswap.compat.XmasLightsIntegration;
+ import es.mrdino.decoswap.config.PluginConfig;
+ import es.mrdino.decoswap.decoration.Anchor;
+ import es.mrdino.decoswap.decoration.EntityRecord;
+@@ -86,6 +87,7 @@
+     Integer leash = null;
+     if (entity instanceof LivingEntity l && l.isLeashed() && l.getLeashHolder() != null)
+       leash = localIds.get(l.getLeashHolder().getUniqueId());
++    XmasLightsIntegration.capture(entity, anchor, props, items);
+     return new EntityRecord(
+         localId,
+         entity.getType().getKey().toString(),
+@@ -110,6 +112,11 @@
+       UUID decorationId,
+       UUID deploymentId)
+       throws Exception {
++    return spawn(record, world, target, rotation, decorationId, deploymentId, null);
++  }
++
++  public Entity spawn(EntityRecord record, World world, Anchor target, Rotation rotation,
++      UUID decorationId, UUID deploymentId, UUID actor) throws Exception {
+     NamespacedKey key = NamespacedKey.fromString(record.type());
+     EntityType type = key == null ? null : Registry.ENTITY_TYPE.get(key);
+     if (type == null || !type.isSpawnable() || type == EntityType.PLAYER)
+@@ -123,6 +130,7 @@
+             target.z() + r[1],
+             target.yaw() + record.yaw() + rotation.degrees(),
+             target.pitch() + record.pitch());
++    XmasLightsIntegration.beforeSpawn(record, target, rotation, decorationId, deploymentId, actor);
+     Entity entity = spawnExact(record, world, location, type);
+     try {
+       for (EntitySerializer<?> s : serializers)
+@@ -155,6 +163,7 @@
+               org.bukkit.persistence.PersistentDataType.INTEGER,
+               record.localId());
+       for (String tag : record.scoreboardTags()) entity.addScoreboardTag(tag);
++      XmasLightsIntegration.adopt(entity, record, target, rotation, decorationId, deploymentId, actor);
+       return entity;
+     } catch (Exception e) {
+       entity.remove();
+--- a/src/main/java/es/mrdino/decoswap/transaction/TransactionJournal.java
++++ b/src/main/java/es/mrdino/decoswap/transaction/TransactionJournal.java
+@@ -141,6 +141,16 @@
+   public Path path(UUID id) {
+     return root.resolve(id + ".yml");
+   }
++  /** Retained deployments need a durable tombstone when an owning plugin was disabled. */
++  public void markRetained(UUID id) {
++    try { AtomicFiles.write(root.resolve("retained").resolve(id.toString()), new byte[]{1}); }
++    catch (IOException failure) { throw new IllegalStateException("Could not record retained deployment " + id, failure); }
++  }
++  public boolean retained(UUID id) { return Files.exists(root.resolve("retained").resolve(id.toString())); }
++  public void clearRetained(UUID id) {
++    try { Files.deleteIfExists(root.resolve("retained").resolve(id.toString())); }
++    catch (IOException failure) { throw new IllegalStateException("Could not clear retained deployment " + id, failure); }
++  }
+ 
+   public record Entry(
+       UUID id,
+--- a/src/main/java/es/mrdino/decoswap/util/DecorationEntities.java
++++ b/src/main/java/es/mrdino/decoswap/util/DecorationEntities.java
+@@ -12,6 +12,7 @@
+   private static final List<NamespacedKey> LIGHT_EFFECT_KEYS =
+       List.of(
+           NamespacedKey.fromString("trpserveredition:beam_display"),
++          NamespacedKey.fromString("xmaslights:rgb_carrier"),
+           NamespacedKey.fromString("strobelights:strobe_marker"),
+           NamespacedKey.fromString("strobelights:offscreen_light_proxy"),
+           NamespacedKey.fromString("strobelights:camera_flash_marker"),
+--- a/src/main/java/es/mrdino/decoswap/util/Fingerprint.java
++++ b/src/main/java/es/mrdino/decoswap/util/Fingerprint.java
+@@ -21,6 +21,9 @@
+           .sorted(EntityRecord.ORDER)
+           .forEach(
+               e -> {
++                if (e.properties().containsKey(es.mrdino.decoswap.compat.XmasLightsIntegration.CONTENT)) {
++                  update(digest, entity(e)); return;
++                }
+                 update(
+                     digest,
+                     e.localId()
+@@ -76,6 +79,11 @@
+   public static String entity(EntityRecord entity) {
+     try {
+       MessageDigest digest = MessageDigest.getInstance("SHA-256");
++      String managed = entity.properties().get(es.mrdino.decoswap.compat.XmasLightsIntegration.CONTENT);
++      if (managed != null) {
++        update(digest, entity.localId() + ":" + entity.x() + "," + entity.y() + "," + entity.z() + ":" + managed);
++        return HexFormat.of().formatHex(digest.digest());
++      }
+       update(
+           digest,
+           entity.localId()
+--- a/src/main/resources/lang/en_US.yml
++++ b/src/main/resources/lang/en_US.yml
+@@ -1,4 +1,8 @@
+ prefix: "<dark_gray>[<aqua>DecoSwap</aqua>]</dark_gray> "
++error.xmaslights-required: "<red>This decoration requires XmasLights 2.7 or newer to be installed and enabled.</red>"
++error.xmaslights-resave: "<red>Save this decoration again with XmasLights 2.7 and DecoSwap 0.1.18 or newer before placing it.</red>"
++error.xmaslights-invalid: "<red>Invalid XmasLights decoration data. Save the whole segment again.</red>"
++error.selection-limit: "<red>The complete XmasLights segment exceeds the entity selection limit.</red>"
+ error.no-permission: "<red>You do not have permission.</red>"
+ error.player-only: "<red>This command can only be used by a player.</red>"
+ error.usage: "<red>Usage: <white><usage></white></red>"
+--- a/src/main/resources/lang/es_ES.yml
++++ b/src/main/resources/lang/es_ES.yml
+@@ -1,4 +1,8 @@
+ prefix: "<dark_gray>[<aqua>DecoSwap</aqua>]</dark_gray> "
++error.xmaslights-required: "<red>Esta decoración necesita XmasLights 2.7 o posterior instalado y activo.</red>"
++error.xmaslights-resave: "<red>Vuelve a guardar esta decoración con XmasLights 2.7 y DecoSwap 0.1.18 o posteriores antes de colocarla.</red>"
++error.xmaslights-invalid: "<red>Los datos de XmasLights no son válidos. Vuelve a guardar el tramo completo.</red>"
++error.selection-limit: "<red>El tramo completo de XmasLights supera el límite de entidades seleccionadas.</red>"
+ error.no-permission: "<red>No tienes permiso.</red>"
+ error.player-only: "<red>Este comando solo puede usarlo un jugador.</red>"
+ error.usage: "<red>Uso: <white><usage></white></red>"
+--- a/src/test/java/es/mrdino/decoswap/compat/LightingCompatibilityTest.java
++++ b/src/test/java/es/mrdino/decoswap/compat/LightingCompatibilityTest.java
+@@ -32,6 +32,7 @@
+   @ParameterizedTest
+   @ValueSource(strings = {
+       "trpserveredition:beam_display",
++      "xmaslights:rgb_carrier",
+       "strobelights:strobe_marker",
+       "strobelights:offscreen_light_proxy",
+       "strobelights:camera_flash_marker",
+--- a/src/test/java/es/mrdino/decoswap/decoration/DecorationServiceLightingTest.java
++++ b/src/test/java/es/mrdino/decoswap/decoration/DecorationServiceLightingTest.java
+@@ -135,7 +135,7 @@
+   }
+ 
+   @ParameterizedTest
+-  @ValueSource(strings = {"trpserveredition:beam_display", "strobelights:strobe_marker"})
++  @ValueSource(strings = {"trpserveredition:beam_display", "strobelights:strobe_marker", "xmaslights:rgb_carrier"})
+   void nearbyLightingCannotReplaceAMissingSavedDisplay(String marker) throws Exception {
+     try (MockedStatic<NamespacedKey> keys = withoutServerRegistry()) {
+       EntityRecord expected = savedDisplay();
+@@ -155,7 +155,7 @@
+   }
+ 
+   @ParameterizedTest
+-  @ValueSource(strings = {"trpserveredition:beam_display", "strobelights:strobe_marker"})
++  @ValueSource(strings = {"trpserveredition:beam_display", "strobelights:strobe_marker", "xmaslights:rgb_carrier"})
+   void nearbyLightingIsIgnoredEvenWhenCloserThanTheSavedDisplay(String marker) throws Exception {
+     try (MockedStatic<NamespacedKey> keys = withoutServerRegistry()) {
+       EntityRecord expected = savedDisplay();
+--- a/src/test/java/es/mrdino/decoswap/deployment/DeploymentEngineLifecycleTest.java
++++ b/src/test/java/es/mrdino/decoswap/deployment/DeploymentEngineLifecycleTest.java
+@@ -356,11 +356,13 @@
+     UUID id = engine.recovery().iterator().next().id();
+ 
+     assertThat(engine.recoveryAccept(id)).isTrue();
++    assertThat(engine.externalDeploymentState(id)).isEqualTo("RETAINED");
+     assertThat(blocks.get(new BlockKey(worldId, 0, 64, 0))).isEqualTo("minecraft:stone");
+     engine = newEngine();
+     engine.load();
+ 
+     assertThat(engine.transactions()).isEmpty();
++    assertThat(engine.externalDeploymentState(id)).isEqualTo("RETAINED");
+     assertThat(await(engine.deploy(model("second", true, false), anchor, Rotation.NONE, null, null, false)).state())
+         .isEqualTo(TransactionState.ACTIVE);
+   }
+@@ -685,6 +687,30 @@
+     assertThat(engine.transactions()).isEmpty();
+   }
+ 
++  @Test
++  void regeneratedXmasLightsEntitiesRemainInTheJournalAcrossRestartAndRestore() throws Exception {
++    Deployment deployed = await(engine.deploy(model("lights", false, true), anchor, Rotation.NONE, null, null, false));
++    UUID old = deployed.spawnedEntities().get(0); entities.remove(old);
++    for (int i=0;i<2;i++) {
++      UUID id=UUID.randomUUID(); Entity part=mock(Entity.class); PersistentDataContainer data=mock(PersistentDataContainer.class);
++      when(part.getUniqueId()).thenReturn(id); when(part.getPersistentDataContainer()).thenReturn(data);
++      when(part.getLocation()).thenReturn(new Location(world,128+i,64,0));
++      when(part.isValid()).thenAnswer(call->entities.containsKey(id));
++      when(data.has(org.bukkit.NamespacedKey.fromString("xmaslights:string"))).thenReturn(true);
++      when(data.get(DecoSwapPlugin.DEPLOYMENT_ID_KEY,PersistentDataType.STRING)).thenReturn(deployed.id().toString());
++      final java.util.concurrent.atomic.AtomicReference<Integer> local=new java.util.concurrent.atomic.AtomicReference<>(i==0?0:null);
++      when(data.get(DecoSwapPlugin.LOCAL_ENTITY_ID_KEY,PersistentDataType.INTEGER)).thenAnswer(call->local.get());
++      doAnswer(call->{local.set(call.getArgument(2));return null;}).when(data).set(eq(DecoSwapPlugin.LOCAL_ENTITY_ID_KEY),eq(PersistentDataType.INTEGER),anyInt());
++      doAnswer(call->{entities.remove(id);return null;}).when(part).remove();entities.put(id,part);
++    }
++    assertThat(engine.syncExternalDeployment(deployed.id(),Set.of(0))).isTrue();
++    assertThat(deployed.spawnedEntities()).hasSize(2).doesNotContainValue(old);
++    assertThat(deployed.spawnedEntities()).containsKey(0);
++    engine=newEngine();engine.load();Deployment reloaded=engine.active().iterator().next();
++    assertThat(reloaded.spawnedEntities()).isEqualTo(deployed.spawnedEntities());assertThat(engine.isPhysicallyHidden(reloaded)).isFalse();
++    assertThat(await(engine.restore(reloaded,null,true)).missingEntities()).isZero();assertThat(entities).isEmpty();
++  }
++
+   private Decoration modelBlocks(String name, int... positions) {
+     Decoration model = model(name, false, false);
+     List<BlockRecord> records = Arrays.stream(positions).mapToObj(x ->
+--- /dev/null
++++ b/src/main/java/es/mrdino/decoswap/compat/XmasLightsIntegration.java
+@@ -0,0 +1,97 @@
++package es.mrdino.decoswap.compat;
++
++import es.mrdino.decoswap.decoration.*;
++import es.mrdino.decoswap.deployment.Deployment;
++import es.mrdino.decoswap.selection.PlayerSelection;
++import es.mrdino.decoswap.util.Rotation;
++import java.lang.reflect.InvocationTargetException;
++import java.nio.charset.StandardCharsets;
++import java.util.*;
++import org.bukkit.*;
++import org.bukkit.block.Block;
++import org.bukkit.entity.*;
++import org.bukkit.plugin.Plugin;
++
++/** Optional XmasLights protocol 1. Neither plugin links the other's implementation classes. */
++public final class XmasLightsIntegration {
++  public static final String STATE = "_xmaslights.state", CONTENT = "_xmaslights.content", ROLE = "_xmaslights.role";
++  private static final NamespacedKey STRING = Objects.requireNonNull(NamespacedKey.fromString("xmaslights:string"));
++  private XmasLightsIntegration() {}
++
++  private static Object call(boolean required, String method, Class<?>[] signature, Object... args) {
++    Plugin plugin = Bukkit.getPluginManager().getPlugin("XmasLights");
++    if (plugin == null || !plugin.isEnabled()) {
++      if (required) throw new IllegalStateException("xmaslights-required");
++      return null;
++    }
++    try {
++      Object api = plugin.getClass().getMethod("decoSwap").invoke(plugin);
++      if (api == null || !Integer.valueOf(1).equals(api.getClass().getMethod("protocolVersion").invoke(api)))
++        throw new IllegalStateException("xmaslights-required");
++      return api.getClass().getMethod(method, signature).invoke(api, args);
++    } catch (InvocationTargetException failure) {
++      Throwable cause = failure.getCause();
++      if (cause instanceof RuntimeException runtime) throw runtime;
++      throw new IllegalStateException(cause);
++    } catch (NoSuchMethodException failure) {
++      if (!required) return null;
++      throw new IllegalStateException("xmaslights-required", failure);
++    } catch (ReflectiveOperationException failure) {
++      throw new IllegalStateException("xmaslights-required", failure);
++    }
++  }
++  public static boolean managed(Entity entity) { return entity != null && entity.getPersistentDataContainer().has(STRING); }
++  public static void expand(PlayerSelection selection, Player player, int limit) {
++    if (selection.entities().stream().map(Bukkit::getEntity).noneMatch(XmasLightsIntegration::managed)) return;
++    @SuppressWarnings("unchecked") Set<UUID> expanded = (Set<UUID>) call(true, "expandSelection", new Class<?>[]{Collection.class, Player.class}, selection.entities(), player);
++    if (expanded.size() > limit) throw new IllegalStateException("selection-limit");
++    if (!expanded.equals(selection.entities())) selection.replace(List.copyOf(selection.blocks()), expanded, selection.anchor());
++  }
++  public static void capture(Entity entity, Anchor anchor, Map<String, String> properties, Map<String, byte[]> items) {
++    if (!managed(entity)) return;
++    @SuppressWarnings("unchecked") Map<String, String> state = (Map<String, String>) call(true, "capture", new Class<?>[]{Entity.class, Location.class}, entity, location(anchor));
++    properties.put(CONTENT, state.get("content"));
++    if (state.get("role") != null) properties.put(ROLE, state.get("role"));
++    items.put(STATE, state.get("state").getBytes(StandardCharsets.UTF_8));
++  }
++  public static void validate(Decoration decoration, Anchor target, Rotation rotation, UUID actor) {
++    List<byte[]> states = decoration.entities().stream().map(e -> e.items().get(STATE)).filter(Objects::nonNull).toList();
++    if (!states.isEmpty()) call(true, "validateDeployment", new Class<?>[]{List.class, Location.class, int.class, UUID.class}, states, location(target), rotation.degrees(), actor);
++    for (EntityRecord record : decoration.entities()) if (!record.items().containsKey(STATE) && record.pdc().length > 0) {
++      var context = Bukkit.getItemFactory().getItemMeta(Material.PAPER).getPersistentDataContainer().getAdapterContext();
++      var data = context.newPersistentDataContainer();
++      try { data.readFromBytes(record.pdc(), true); }
++      catch (java.io.IOException failure) { throw new IllegalStateException("xmaslights-invalid", failure); }
++      if (data.has(STRING)) throw new IllegalStateException("xmaslights-resave");
++    }
++  }
++  public static void adopt(Entity entity, EntityRecord record, Anchor target, Rotation rotation, UUID decoration, UUID deployment, UUID actor) {
++    byte[] state = record.items().get(STATE);
++    if (state != null) call(true, "adopt", new Class<?>[]{Entity.class, byte[].class, Location.class, int.class, UUID.class, UUID.class, UUID.class, int.class},
++        entity, state, location(target), rotation.degrees(), decoration, deployment, actor, record.localId());
++  }
++  public static void beforeSpawn(EntityRecord record, Anchor target, Rotation rotation, UUID decoration, UUID deployment, UUID actor) {
++    byte[] state = record.items().get(STATE);
++    if (state != null) call(true, "prepare", new Class<?>[]{byte[].class, Location.class, int.class, UUID.class, UUID.class, UUID.class}, state, location(target), rotation.degrees(), decoration, deployment, actor);
++  }
++  public static boolean matches(EntityRecord record, Entity entity, EntityType fallback) {
++    String role = record.properties().get(ROLE);
++    if (role != null) return managed(entity) && role.equals(entity.getPersistentDataContainer().get(
++        Objects.requireNonNull(NamespacedKey.fromString("xmaslights:part")), org.bukkit.persistence.PersistentDataType.STRING));
++    return fallback == null || entity.getType() == fallback;
++  }
++  public static void finish(Deployment deployment, boolean required) {
++    call(required, "finishDeployment", new Class<?>[]{UUID.class}, deployment.id());
++  }
++  public static void release(UUID deployment) { call(false, "releaseDeployment", new Class<?>[]{UUID.class}, deployment); }
++  public static void detach(UUID deployment) { call(false, "detachDeployment", new Class<?>[]{UUID.class}, deployment); }
++  public static void remove(Collection<UUID> entities, Player player) {
++    if (entities.stream().map(Bukkit::getEntity).anyMatch(XmasLightsIntegration::managed))
++      call(true, "removeSelected", new Class<?>[]{Collection.class, Player.class}, entities, player);
++  }
++  public static String originalBlock(Block block) {
++    if (block.getType() != Material.LIGHT) return null;
++    return (String) call(false, "originalBlock", new Class<?>[]{Block.class}, block);
++  }
++  private static Location location(Anchor anchor) { return new Location(Bukkit.getWorld(anchor.worldId()), anchor.x(), anchor.y(), anchor.z(), anchor.yaw(), anchor.pitch()); }
++}
+--- /dev/null
++++ b/src/test/java/es/mrdino/decoswap/compat/XmasLightsIntegrationTest.java
+@@ -0,0 +1,87 @@
++package es.mrdino.decoswap.compat;
++
++import static org.assertj.core.api.Assertions.*;
++import static org.mockito.Mockito.*;
++import es.mrdino.decoswap.decoration.*;
++import es.mrdino.decoswap.selection.PlayerSelection;
++import es.mrdino.decoswap.util.*;
++import java.nio.charset.StandardCharsets;
++import java.util.*;
++import org.bukkit.*;
++import org.bukkit.block.Block;
++import org.bukkit.entity.*;
++import org.bukkit.persistence.PersistentDataContainer;
++import org.bukkit.plugin.PluginManager;
++import org.bukkit.plugin.java.JavaPlugin;
++import org.junit.jupiter.api.*;
++import org.mockito.MockedStatic;
++
++class XmasLightsIntegrationTest {
++  public static abstract class Host extends JavaPlugin { public abstract Api decoSwap(); }
++  public static class Api {
++    Set<UUID> selection = Set.of(); int captures;
++    public int protocolVersion(){return 1;}
++    public Set<UUID> expandSelection(Collection<UUID> ids, Player actor){return selection;}
++    public Map<String,String> capture(Entity entity,Location anchor){captures++;return Map.of("state","{\"protocol\":1}","content","logical-colours-and-mode");}
++    public String originalBlock(Block block){return "minecraft:air";}
++  }
++  MockedStatic<Bukkit> bukkit;
++  Host host; Api api; PluginManager plugins;
++  final UUID worldId=UUID.randomUUID(); final World world=mock(World.class);
++  @BeforeEach void start(){
++    host=mock(Host.class);api=new Api();plugins=mock(PluginManager.class);
++    when(host.isEnabled()).thenReturn(true);when(host.decoSwap()).thenReturn(api);when(plugins.getPlugin("XmasLights")).thenReturn(host);
++    bukkit=mockStatic(Bukkit.class);bukkit.when(Bukkit::getPluginManager).thenReturn(plugins);bukkit.when(()->Bukkit.getWorld(worldId)).thenReturn(world);
++  }
++  @AfterEach void stop(){bukkit.close();}
++  Entity part(UUID id){
++    ItemDisplay part=mock(ItemDisplay.class);var data=mock(PersistentDataContainer.class);
++    when(part.getPersistentDataContainer()).thenReturn(data);when(data.has(NamespacedKey.fromString("xmaslights:string"))).thenReturn(true);
++    when(part.getUniqueId()).thenReturn(id);bukkit.when(()->Bukkit.getEntity(id)).thenReturn(part);return part;
++  }
++  @Test void expansionPreservesSelectedBlocksAndAppliesTheEntityLimitAtomically(){
++    UUID a=UUID.randomUUID(),b=UUID.randomUUID();part(a);part(b);api.selection=new LinkedHashSet<>(List.of(a,b));
++    var selection=new PlayerSelection();var block=new BlockKey(worldId,1,70,2);selection.add(block,10);selection.add(a,10);
++    assertThatThrownBy(()->XmasLightsIntegration.expand(selection,null,1)).hasMessage("selection-limit");assertThat(selection.entities()).containsExactly(a);
++    XmasLightsIntegration.expand(selection,null,2);assertThat(selection.entities()).containsExactly(a,b);assertThat(selection.blocks()).containsExactly(block);
++  }
++  @Test void captureStoresLogicalStateThroughThePublicProtocol(){
++    var props=new HashMap<String,String>();var items=new HashMap<String,byte[]>();
++    XmasLightsIntegration.capture(part(UUID.randomUUID()),new Anchor(worldId,"world",0,64,0,0,0),props,items);
++    assertThat(props).containsEntry(XmasLightsIntegration.CONTENT,"logical-colours-and-mode");
++    assertThat(new String(items.get(XmasLightsIntegration.STATE),StandardCharsets.UTF_8)).isEqualTo("{\"protocol\":1}");assertThat(api.captures).isEqualTo(1);
++  }
++  @Test void missingOrDisabledXmasLightsCannotBeCapturedAsStaticDisplays(){
++    var part=part(UUID.randomUUID());when(host.isEnabled()).thenReturn(false);
++    assertThatThrownBy(()->XmasLightsIntegration.capture(part,new Anchor(worldId,"world",0,64,0,0,0),new HashMap<>(),new HashMap<>())).hasMessage("xmaslights-required");
++  }
++  @Test void nativeLightNormalizationOnlyConsultsTheHostForLightBlocks(){
++    var light=mock(Block.class);when(light.getType()).thenReturn(Material.LIGHT);assertThat(XmasLightsIntegration.originalBlock(light)).isEqualTo("minecraft:air");
++    var stone=mock(Block.class);when(stone.getType()).thenReturn(Material.STONE);assertThat(XmasLightsIntegration.originalBlock(stone)).isNull();
++  }
++  EntityRecord record(String content,String brightness,byte pdc){
++    return new EntityRecord(4,"minecraft:item_display",1,2,3,0,0,Map.of(XmasLightsIntegration.CONTENT,content,"display.blockLight",brightness),
++        Map.of(XmasLightsIntegration.STATE,new byte[]{pdc},"itemDisplay.item",new byte[]{pdc}),new byte[]{pdc},List.of(),List.of(),null);
++  }
++  @Test void animationAndRuntimeIdsDoNotReportFalseDecorationChanges(){
++    var a=record("palette:red;mode:chase;on:true","15",(byte)1);var b=record("palette:red;mode:chase;on:true","2",(byte)9);
++    assertThat(Fingerprint.entity(a)).isEqualTo(Fingerprint.entity(b));assertThat(Fingerprint.decoration(List.of(),List.of(a))).isEqualTo(Fingerprint.decoration(List.of(),List.of(b)));
++  }
++  @Test void logicalColourAndModeChangesRemainDetectable(){
++    assertThat(Fingerprint.entity(record("red;steady","15",(byte)1))).isNotEqualTo(Fingerprint.entity(record("blue;blink","15",(byte)1)));
++  }
++  @Test void changingBetweenPackedAndVanillaDisplaysKeepsTheLogicalFingerprint(){
++    var packed=record("type:wall-warm;role:bulb:0","15",(byte)1);
++    var vanilla=new EntityRecord(packed.localId(),"minecraft:block_display",packed.x(),packed.y(),packed.z(),90,0,
++        packed.properties(),packed.items(),packed.pdc(),packed.scoreboardTags(),packed.passengers(),packed.leashHolder());
++    assertThat(Fingerprint.entity(packed)).isEqualTo(Fingerprint.entity(vanilla));
++  }
++  @Test void homeMatchingUsesThePartRoleAcrossRendererChanges(){
++    var entity=part(UUID.randomUUID());var data=entity.getPersistentDataContainer();
++    when(data.get(NamespacedKey.fromString("xmaslights:part"),org.bukkit.persistence.PersistentDataType.STRING)).thenReturn("body:0");
++    var expected=new EntityRecord(0,"minecraft:item_display",0,0,0,0,0,Map.of(XmasLightsIntegration.ROLE,"body:0"),Map.of(),new byte[0],List.of(),List.of(),null);
++    assertThat(XmasLightsIntegration.matches(expected,entity,EntityType.BLOCK_DISPLAY)).isTrue();
++    when(data.get(NamespacedKey.fromString("xmaslights:part"),org.bukkit.persistence.PersistentDataType.STRING)).thenReturn("bulb:0");
++    assertThat(XmasLightsIntegration.matches(expected,entity,EntityType.ITEM_DISPLAY)).isFalse();
++  }
++}

@@ -1,0 +1,19 @@
+{
+  "source": "Nexo final ZIP from latest (6).log",
+  "pack_sha256": "ee59a83fa22bfffe52dd0307aee468c72de052d6b48c8679cbdb0d951b1b093c",
+  "versions": {
+    "XmasLights": "2.8.6",
+    "StrobeLights": "0.10.40",
+    "TRP": "0.4.19",
+    "Nexo": "1.15",
+    "Paper": "1.21.4"
+  },
+  "compiled_shader_programs": 32,
+  "compile_failures": [],
+  "gpu_cases": 240,
+  "missing_sources": 0,
+  "corrupt_sources": 0,
+  "lighting_cases": 20,
+  "packet_leaks": 0,
+  "acceptance": "Remote player state and visual client acceptance pending"
+}

@@ -1,0 +1,3 @@
+Original procedural models and textures: AstralicaStudio & MrDino.
+Pack icon: original artwork generated with the built-in image generation tool.
+Additive assets only: no Minecraft or StrobeLights shaders are replaced.

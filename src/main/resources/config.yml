@@ -1,0 +1,198 @@
+# XmasLights | AstralicaStudio & MrDino
+# UTF-8. Reload with /xmaslights reload after editing.
+# Missing options are added automatically, with a dated backup of this file.
+# Your values and comments are preserved. Invalid values reject the reload.
+# Keep YAML indentation (spaces, never tabs); do not translate option keys.
+config-version: 16
+
+# LANGUAGE ---------------------------------------------------------------
+# Supported: en (English), es (Español), fr (Français), it (Italiano), de (Deutsch).
+# Edit messages, colors (& codes), item names and lore in lang/<code>.yml.
+# Keep placeholders such as {count}; they are validated on reload.
+language:
+  default: en
+  # false: everyone uses the language above. true: use the player's client
+  # language when supported; unsupported clients and console use the default.
+  # Existing kits keep their text; newly given/refunded kits use the recipient's language.
+  use-player-locale: false
+
+# PLACEMENT --------------------------------------------------------------
+# Maximum distance between endpoints in blocks (2..128).
+max-length: 128
+# Cable sag relative to horizontal length, for hanging AND wall lights (0..1).
+# Set a type's sag: 0 in types.yml for a deliberately straight outline.
+sag: 0.08
+# Natural sag for pine types without an explicit sag value. Built-in wall-* types
+# use sag: 0 for straight wall outlines. Vertical sections always stay straight.
+# Per-type sag overrides this (0..1).
+garlands:
+  sag: 0.16
+  # Soft illumination of foliage itself (0..15; 0 = natural light only).
+  # Does not place LIGHT blocks or add entities. LEDs retain their own brightness.
+  # Natural sky/block light is kept when brighter; refreshes once per second.
+  minimum-body-light: 5
+# Fallback bulb distance in blocks (0.1..16). types.yml can override this.
+bulb-spacing: 0.9
+# Consume one kit per segment, except in creative. Only segments that actually
+# consumed a kit are refundable. Old/creative/free segments never generate items.
+consume-item: false
+# Wall placement snap grid (0..1 blocks). 0 disables snapping; 0.5 allows corners/centres.
+wall-grid: 0.5
+
+# REAL WORLD LIGHT -------------------------------------------------------
+# Replaces air with invisible minecraft:light blocks. Existing world LIGHT
+# blocks and solid blocks are never claimed or replaced.
+# Vanilla fallback when StrobeLights is absent or this integration is disabled.
+# With StrobeLights enabled, owned white LIGHT blocks are removed globally and
+# only its RGB renderer lights surfaces. A missing/incompatible pack is reported.
+light-blocks: true
+# Real light level (0..15), unless a type overrides it.
+light-level: 12
+# Apply bulb animation to invisible LIGHT blocks (enabled by default).
+# Set false for steady vanilla lighting while the visible bulbs animate.
+# On/off and night-only still work. Overlaps use the highest light level.
+animated-light: true
+# Turn lights off during daytime (world time 0..12299 and 23851..23999).
+night-only: false
+
+# DISPLAY AND EFFECTS ----------------------------------------------------
+# Visual brightness of display entities (0..15), independent of real light.
+brightness-on: 15
+brightness-off: 2
+# Update interval in server ticks (1..1200); 20 ticks = one second.
+animation-ticks: 2
+# Blink/alternate/chase/twinkle advance every X updates (1..1200).
+# Example: 5 steps * 2 ticks = 0.5 seconds per phase at 20 TPS.
+effect-steps: 5
+# Full breathing cycle, in updates (4..24000).
+breathe-period: 40
+# Switch bulbs ON sequentially. OFF stops effects and lighting immediately.
+progressive-switch: true
+# Bulbs switched per update (1..256).
+progressive-speed: 1
+# Display visibility in chunks (1..64). Only chunks sent by the server can be seen.
+# 1 chunk = 16 blocks; this does not increase the server entity tracking distance.
+view-distance-chunks: 21
+# Head vertical alignment as a fraction of bulb size (-2..2).
+# Geometry changes rebuild loaded lights automatically, without losing groups.
+head-center-y: 0.5
+
+# WIRE GEOMETRY ----------------------------------------------------------
+wire:
+  # Valid Minecraft block data. This is a display, not a placed solid block.
+  block: "minecraft:black_concrete"
+  # Wire width in blocks (0.005..1).
+  thickness: 0.035
+  # Maximum curve deviation (0.002..1). Larger = fewer wire display entities.
+  precision: 0.02
+
+# PERFORMANCE LIMITS -----------------------------------------------------
+# Enabled caps apply to administrators too. The display budget always applies.
+# Existing saved data is retained if you reduce these values.
+limits:
+  # Per segment (1..256); a lower value distributes fewer bulbs along the entire line.
+  max-bulbs-per-segment: 64
+  # Optional total saved segment cap, including hidden ones (0..4096).
+  # 0 disables this count cap; max-entities still limits display usage.
+  max-strings: 0
+  # Optional saved segment cap per owner (0..1024). 0 disables this count cap.
+  max-strings-per-player: 0
+  # Total display budget INCLUDING private RGB carriers (64..100000).
+  # Overflow after reducing the cap is hidden, never deleted; data is preserved.
+  max-entities: 8192
+# Segments rebuilt per tick after reload (1..16). Lower = smoother server load.
+updates-per-tick: 2
+
+# STROBELIGHTS RGB -------------------------------------------------------
+# Uses StrobeLights' own 3D RGB renderer and its matching resource pack.
+# No colored circles, TextDisplay overlays or replacement surface renderer.
+# The supported StrobeLights pipeline requires Fabulous. External shaderpacks
+# can replace that pipeline; use only combinations supported by StrobeLights.
+strobelights:
+  enabled: true
+  # Update interval in SERVER ticks (1..20). Actual updates are also bounded by
+  # animation-ticks above. Unchanged source payloads are not resent.
+  update-ticks: 4
+  # Sample the existing bulbs no closer than this many blocks (0.5..16).
+  # Dense garlands do not need a separate shader source for every tiny LED.
+  source-spacing: 2.0
+  # Nearby RGB sources shown to each viewer (1..128), with stable selection, and total private
+  # renderer carriers across all viewers (1..2048). These do not include the
+  # separate native StrobeLights sources managed by that plugin.
+  max-sources-per-player: 128
+  max-carriers-total: 512
+  # 0: follow chunks sent to the player. 1..64: explicit limit in chunks.
+  # Never loads or sends extra chunks or attenuates light by camera distance.
+  view-distance-chunks: 0
+  # A new source must be this many blocks closer to replace a retained one (0..32).
+  # Reduces changes of illuminated patches when walking between dense strings.
+  selection-hysteresis: 6.0
+  intensity-scale: 0.55
+  surfaces:
+    # Only project onto an actual solid block within this distance (0.5..16).
+    # Floor below the bulb; wall fittings first try their supporting wall.
+    # No target means no RGB impact. Never loads chunks to look for a surface.
+    reach: 8.0
+    # Maximum radius in BLOCKS (0.25..8), not a multiplier. Further targets dim
+    # gradually; close walls are not discarded to protect lamp clearance.
+    # A little reflected RGB on nearby foliage is intentional.
+    max-radius: 2.25
+    # At this source-to-surface distance, energy is halved (0.5..16).
+    distance-fade: 8.0
+    # true: RGB follows the bulbs' selected mode (colour AND intensity).
+    # false: keep RGB steady while the bulbs animate. OFF/night-only always stop both.
+    # OFF also releases private RGB carriers; effect-driven dark frames reuse them.
+    follow-effects: true
+    # Cache probes for 20..39 ticks by default (4..200, with staggered expiry).
+    # Maximum new/expired probes per RGB update (1..64), shared by all viewers.
+    refresh-ticks: 20
+    probes-per-update: 64
+  # Leave false until a new StrobeLights version has passed compatibility tests.
+  # Even when true, the installed carrier model contract is checked first.
+  allow-untested-version: false
+
+# DECORATIVE MODEL PACK --------------------------------------------------
+# Exported automatically to plugins/XmasLights/resource-pack/.
+# Namespaced decorative models/textures only; all RGB shaders belong to StrobeLights.
+# Delivery priority: Nexo, TRP's shared pack, explicit URL, built-in HTTP host.
+# Nexo receives its own input during onLoad, before plugins are enabled.
+model-pack:
+  # Default: detailed models and automatic pack delivery.
+  # false: vanilla block displays for everyone, without a XmasLights pack download.
+  # One global renderer is used; there are no duplicate pack/vanilla entity sets.
+  enabled: true
+  nexo:
+    enabled: true
+    # Only request a focused rebuild when the input changed after startup.
+    # Waits for an active Nexo generation to finish; unchanged files stay untouched.
+    # false only stages the input: run /nexo reload pack yourself or restart.
+    auto-rebuild: true
+  trp-overlay: true
+  # Optional externally hosted download URL. Empty uses automatic delivery above.
+  url: ""
+  auto-send: true
+  # For XmasLights' own delivery only. Nexo/TRP keep their own pack acceptance policy.
+  required: false
+  embedded:
+    # Used only without a selected Nexo/TRP provider or explicit URL.
+    enabled: true
+    bind-address: "0.0.0.0"
+    # Open/forward this TCP port if players connect from outside your network.
+    port: 8164
+    # Optional public BASE URL (e.g. https://packs.example.com). Empty advertises
+    # the hostname the player used to join, with the port above. Behind a proxy,
+    # NAT or a hosting panel, configure a reachable address/allocated port here.
+    # The ZIP path and SHA-1 cache key are appended automatically.
+    public-url: ""
+  # Only enable when EVERY client is already required to use the model pack
+  # through another verified delivery mechanism or a manual installation.
+  # Otherwise only clients reporting a successful pack load see the models.
+  assume-installed: false
+
+# UPDATE NOTIFICATIONS ----------------------------------------------------
+# Checks stable Modrinth releases for this exact Minecraft version and Paper.
+# Asynchronous; only notifies, never downloads or installs an update.
+updates:
+  enabled: true
+  notify-admins: true
+  check-interval-hours: 6

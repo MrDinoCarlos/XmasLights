@@ -1,0 +1,330 @@
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -3,7 +3,7 @@
+ }
+ 
+ group = "es.mrdino"
+-version = "0.10.40"
++version = "0.10.41"
+ 
+ repositories {
+     mavenCentral()
+--- a/src/test/java/es/mrdino/strobelights/resourcepack/PackJoinReadinessTest.java
++++ b/src/test/java/es/mrdino/strobelights/resourcepack/PackJoinReadinessTest.java
+@@ -0,0 +1,39 @@
++package es.mrdino.strobelights.resourcepack;
++
++import es.mrdino.strobelights.StrobeLightsPlugin;
++import es.mrdino.strobelights.service.StrobeManager;
++import java.util.UUID;
++import org.bukkit.entity.Player;
++import org.bukkit.event.player.PlayerJoinEvent;
++import org.bukkit.event.player.PlayerQuitEvent;
++import org.bukkit.event.player.PlayerResourcePackStatusEvent.Status;
++import org.junit.jupiter.api.Test;
++import static org.junit.jupiter.api.Assertions.*;
++import static org.mockito.Mockito.*;
++
++class PackJoinReadinessTest {
++    @Test void joinPreservesAlreadyConfirmedSharedPackUntilQuit() throws Exception {
++        var plugin = mock(StrobeLightsPlugin.class);
++        var manager = mock(StrobeManager.class);
++        when(plugin.manager()).thenReturn(manager);
++        var player = mock(Player.class); var id = UUID.randomUUID();
++        when(player.getUniqueId()).thenReturn(id);
++        var service = new ResourcePackService(plugin);
++        for (String name : new String[] {"active", "nexoManaged"}) {
++            var field = ResourcePackService.class.getDeclaredField(name); field.setAccessible(true); field.set(service, true);
++        }
++        var field = ResourcePackService.class.getDeclaredField("packLoads"); field.setAccessible(true);
++        var tracker = (PackLoadTracker)field.get(service); var pack = UUID.randomUUID();
++        tracker.update(id, pack, Status.SUCCESSFULLY_LOADED, pack, false);
++        assertTrue(service.isLoaded(player));
++        service.onJoin(mockJoin(player));
++        assertTrue(service.isLoaded(player), "Join must not erase a pack already accepted during login/reconfiguration");
++        verify(manager).setMarkersVisible(player, true);
++        var quit = mock(PlayerQuitEvent.class); when(quit.getPlayer()).thenReturn(player);
++        service.onQuit(quit);
++        assertFalse(service.isLoaded(player), "A later connection must confirm its own pack");
++    }
++    private static PlayerJoinEvent mockJoin(Player player) {
++        var event = mock(PlayerJoinEvent.class); when(event.getPlayer()).thenReturn(player); return event;
++    }
++}
+--- a/src/test/java/es/mrdino/strobelights/resourcepack/PackLoadTrackerTest.java
++++ b/src/test/java/es/mrdino/strobelights/resourcepack/PackLoadTrackerTest.java
+@@ -0,0 +1,48 @@
++package es.mrdino.strobelights.resourcepack;
++
++import java.util.UUID;
++import org.junit.jupiter.api.Test;
++import static org.bukkit.event.player.PlayerResourcePackStatusEvent.Status.*;
++import static org.junit.jupiter.api.Assertions.*;
++
++class PackLoadTrackerTest {
++    @Test void unrelatedPackFailureCannotDisableLoadedRenderer() {
++        var tracker = new PackLoadTracker(); var player = UUID.randomUUID(); var pack = UUID.randomUUID();
++        assertTrue(tracker.update(player, pack, SUCCESSFULLY_LOADED, pack, false));
++        for (var status : new org.bukkit.event.player.PlayerResourcePackStatusEvent.Status[] {
++                FAILED_DOWNLOAD, INVALID_URL, FAILED_RELOAD, DISCARDED}) {
++            assertFalse(tracker.update(player, UUID.randomUUID(), status, pack, false));
++            assertTrue(tracker.isLoaded(player));
++        }
++        tracker.update(player, pack, DISCARDED, pack, false);
++        assertFalse(tracker.isLoaded(player));
++    }
++    @Test void discardingPreviousGenerationDoesNotDiscardTheNewPack() {
++        var tracker = new PackLoadTracker(); var player = UUID.randomUUID();
++        var previous = UUID.randomUUID(); var current = UUID.randomUUID();
++        tracker.update(player, previous, ACCEPTED, previous, false);
++        tracker.update(player, current, SUCCESSFULLY_LOADED, current, false);
++        // The previous generation can finish after the provider has published a new UUID.
++        assertTrue(tracker.update(player, previous, SUCCESSFULLY_LOADED, current, false));
++        tracker.update(player, previous, DISCARDED, current, false);
++        assertTrue(tracker.isLoaded(player));
++        tracker.update(player, current, FAILED_RELOAD, current, false);
++        assertFalse(tracker.isLoaded(player));
++    }
++    @Test void unrelatedSuccessAndUnavailableProviderDoNotEnableRgb() {
++        var tracker = new PackLoadTracker(); var player = UUID.randomUUID();
++        assertFalse(tracker.update(player, UUID.randomUUID(), SUCCESSFULLY_LOADED, null, false));
++        assertFalse(tracker.update(player, UUID.randomUUID(), SUCCESSFULLY_LOADED, UUID.randomUUID(), false));
++        assertFalse(tracker.isLoaded(player));
++    }
++    @Test void embeddedSharedHostsAlsoKeepSeparatePackStateAndClearOnQuit() {
++        var tracker = new PackLoadTracker(); var player = UUID.randomUUID(); var pack = UUID.randomUUID();
++        tracker.update(player, pack, SUCCESSFULLY_LOADED, null, true);
++        tracker.update(player, UUID.randomUUID(), FAILED_DOWNLOAD, null, true);
++        assertTrue(tracker.isLoaded(player));
++        assertFalse(tracker.isLoaded(UUID.randomUUID()));
++        tracker.forget(player);
++        assertFalse(tracker.isLoaded(player));
++        assertEquals("NO_STATUS", tracker.status(player));
++    }
++}
+--- a/src/test/java/es/mrdino/strobelights/resourcepack/ShaderPackContractTest.java
++++ b/src/test/java/es/mrdino/strobelights/resourcepack/ShaderPackContractTest.java
+@@ -55,7 +55,7 @@
+             "assets/strobelights/strobelights-integration.json"
+         );
+         assertTrue(Files.isRegularFile(integration));
+-        assertContains(integration, "\"version\": \"0.10.40\"");
++        assertContains(integration, "\"version\": \"0.10.41\"");
+         assertContains(integration, "\"render_pipeline\": \"light_painter_rgb\"");
+         assertContains(integration, "\"marker_protocol\": \"typed_bitgrid_3x3_v5\"");
+     }
+--- a/src/main/java/es/mrdino/strobelights/resourcepack/PackLoadTracker.java
++++ b/src/main/java/es/mrdino/strobelights/resourcepack/PackLoadTracker.java
+@@ -0,0 +1,39 @@
++package es.mrdino.strobelights.resourcepack;
++
++import java.util.*;
++import org.bukkit.event.player.PlayerResourcePackStatusEvent.Status;
++
++/** Readiness belongs to a pack UUID, not to the last event from any plugin. */
++final class PackLoadTracker {
++    private final Map<UUID, Set<UUID>> pending = new HashMap<>();
++    private final Map<UUID, Set<UUID>> loaded = new HashMap<>();
++    private final Map<UUID, String> last = new HashMap<>();
++
++    boolean update(UUID player, UUID pack, Status status, UUID expected, boolean legacyShared) {
++        boolean known = pending.getOrDefault(player, Set.of()).contains(pack)
++            || loaded.getOrDefault(player, Set.of()).contains(pack);
++        if (!known && !pack.equals(expected) && !legacyShared) return false;
++        last.put(player, status.name() + " (" + pack + ")");
++        switch (status) {
++            case ACCEPTED, DOWNLOADED -> pending.computeIfAbsent(player, ignored -> new HashSet<>()).add(pack);
++            case SUCCESSFULLY_LOADED -> {
++                remove(pending, player, pack);
++                loaded.computeIfAbsent(player, ignored -> new HashSet<>()).add(pack);
++            }
++            case DECLINED, FAILED_DOWNLOAD, INVALID_URL, FAILED_RELOAD, DISCARDED -> {
++                remove(pending, player, pack);
++                remove(loaded, player, pack);
++            }
++            default -> { }
++        }
++        return true;
++    }
++    private static void remove(Map<UUID, Set<UUID>> map, UUID player, UUID pack) {
++        var entries = map.get(player);
++        if (entries != null) { entries.remove(pack); if (entries.isEmpty()) map.remove(player); }
++    }
++    boolean isLoaded(UUID player) { return !loaded.getOrDefault(player, Set.of()).isEmpty(); }
++    String status(UUID player) { return last.getOrDefault(player, "NO_STATUS"); }
++    void forget(UUID player) { pending.remove(player); loaded.remove(player); last.remove(player); }
++    void clear() { pending.clear(); loaded.clear(); last.clear(); }
++}
+--- a/src/main/java/es/mrdino/strobelights/resourcepack/ResourcePackService.java
++++ b/src/main/java/es/mrdino/strobelights/resourcepack/ResourcePackService.java
+@@ -53,7 +53,7 @@
+ /** Loads, hosts and sends the Light Painter shader and GUI icon resource pack. */
+ public final class ResourcePackService implements Listener {
+ 
+-    private static final String PACK_REVISION = "0.10.40";
++    private static final String PACK_REVISION = "0.10.41";
+     private static final String DEFAULT_PUBLIC_URL =
+         "http://serverip.com:8250/strobelights/{token}.zip";
+     private static final String EMBEDDED_PACK =
+@@ -61,7 +61,7 @@
+ 
+     private final StrobeLightsPlugin plugin;
+     private final Listener nexoPackListener = new Listener() { };
+-    private final Set<UUID> loadedPlayers = ConcurrentHashMap.newKeySet();
++    private final PackLoadTracker packLoads = new PackLoadTracker();
+     private final Set<UUID> deliveryAttemptedPlayers = ConcurrentHashMap.newKeySet();
+     private final Set<UUID> compatibilityNotifiedPlayers = ConcurrentHashMap.newKeySet();
+     private EmbeddedPackServer httpServer;
+@@ -282,7 +282,7 @@
+         nexoSourcePackBytes = null;
+         nexoPackServerDelegate = null;
+         nexoPackServerProxy = null;
+-        loadedPlayers.clear();
++        packLoads.clear();
+         deliveryAttemptedPlayers.clear();
+         closeEmbeddedServer();
+     }
+@@ -293,7 +293,7 @@
+             active,
+             nexoManaged,
+             deliveryAttemptedPlayers.contains(playerId),
+-            loadedPlayers.contains(playerId)
++            packLoads.isLoaded(playerId)
+         );
+     }
+ 
+@@ -310,6 +310,24 @@
+         return PACK_REVISION;
+     }
+ 
++    /** Read-only integration diagnostic; never consults TRP graphics preferences. */
++    public String diagnostic(Player player) {
++        return "provider=" + (nexoManaged ? "NEXO" : trpManaged ? "TRP" : "STROBELIGHTS")
++            + ", active=" + active + ", ready=" + isLoaded(player)
++            + ", expected=" + expectedPackId() + ", status=" + packLoads.status(player.getUniqueId());
++    }
++
++    private UUID expectedPackId() {
++        if (!nexoManaged) return trpManaged ? null : packId;
++        if (nexoPlugin == null) return null;
++        try {
++            Object server = nexoPlugin.getClass().getMethod("packServer").invoke(nexoPlugin);
++            if (server == null) return null;
++            Object info = server.getClass().getMethod("packInfo").invoke(server);
++            return info instanceof net.kyori.adventure.resource.ResourcePackInfo pack ? pack.id() : null;
++        } catch (ReflectiveOperationException | RuntimeException | LinkageError failure) { return null; }
++    }
++
+     /** Re-registers this immutable pack when TRP initializes or reloads after StrobeLights. */
+     public boolean registerWithTrpNexo() {
+         if (!hasEnabledNexoIntegration() || !hasEnabledTrp()) {
+@@ -335,7 +353,7 @@
+             resendWithTrp(player);
+             return;
+         }
+-        loadedPlayers.remove(player.getUniqueId());
++        packLoads.forget(player.getUniqueId());
+         sendLater(player);
+     }
+ 
+@@ -343,22 +361,23 @@
+     public void onJoin(PlayerJoinEvent event) {
+         Player player = event.getPlayer();
+         UUID playerId = player.getUniqueId();
+-        loadedPlayers.remove(playerId);
++        // Pack confirmation may arrive before join during login/reconfiguration.
++        // Quit/stop clear the connection state; join must preserve its confirmation.
+         deliveryAttemptedPlayers.remove(playerId);
+         compatibilityNotifiedPlayers.remove(playerId);
+         if (nexoManaged || trpManaged || !active) {
+-            plugin.manager().setMarkersVisible(player, !active);
+-            return;
+-        }
+-        plugin.manager().setMarkersVisible(player, false);
+-        sendLater(player);
++            plugin.manager().setMarkersVisible(player, isLoaded(player));
++            return;
++        }
++        plugin.manager().setMarkersVisible(player, isLoaded(player));
++        if (!isLoaded(player)) sendLater(player);
+         warnAdministratorLater(player);
+     }
+ 
+     @EventHandler(priority = EventPriority.MONITOR)
+     public void onQuit(PlayerQuitEvent event) {
+         UUID playerId = event.getPlayer().getUniqueId();
+-        loadedPlayers.remove(playerId);
++        packLoads.forget(playerId);
+         deliveryAttemptedPlayers.remove(playerId);
+         compatibilityNotifiedPlayers.remove(playerId);
+     }
+@@ -368,15 +387,18 @@
+         if (!active) {
+             return;
+         }
+-        boolean sharedPack = nexoManaged || trpManaged;
+-        if (!sharedPack && !event.getID().equals(packId)) {
+-            return;
+-        }
+         Player player = event.getPlayer();
++        // Nexo exposes the actual final pack UUID. Remember accepted generations
++        // too, since a new build can publish before the previous download completes.
++        // Older embedded TRP hosts expose no pack ID: retain per-ID accounting there.
++        if (!packLoads.update(player.getUniqueId(), event.getID(), event.getStatus(),
++                expectedPackId(), trpManaged && !nexoManaged)) {
++            return;
++        }
+         switch (event.getStatus()) {
+             case SUCCESSFULLY_LOADED -> {
+-                loadedPlayers.add(player.getUniqueId());
+                 plugin.manager().setMarkersVisible(player, true);
++                plugin.getLogger().info("RGB pack loaded for " + player.getName() + ": " + event.getID());
+                 player.sendMessage(Component.text(
+                     plugin.messages().text(player, "resource-pack.loaded", "revision", PACK_REVISION),
+                     NamedTextColor.GREEN
+@@ -384,13 +406,13 @@
+                 sendCompatibilityNoticeLater(player);
+             }
+             case DECLINED, FAILED_DOWNLOAD, INVALID_URL, FAILED_RELOAD, DISCARDED -> {
+-                loadedPlayers.remove(player.getUniqueId());
+-                plugin.manager().setMarkersVisible(player, false);
++                boolean ready = isLoaded(player);
++                plugin.manager().setMarkersVisible(player, ready);
+                 plugin.getLogger().warning(
+                     "Resource pack " + event.getStatus().name().toLowerCase()
+                         + " for " + player.getName()
+-                        + "; RGB markers remain available for a previously loaded or "
+-                        + "proxy-managed combined pack."
++                        + "; pack=" + event.getID() + "; RGB ready=" + ready
++                        + (ready ? " (another renderer pack remains loaded)." : " (no renderer pack loaded).")
+                 );
+             }
+             default -> {
+@@ -428,7 +450,7 @@
+             UUID playerId = player.getUniqueId();
+             if (!active
+                 || !player.isOnline()
+-                || !loadedPlayers.contains(playerId)
++                    || !packLoads.isLoaded(playerId)
+                 || !compatibilityNotifiedPlayers.add(playerId)) {
+                 return;
+             }
+--- a/resource-pack/pack.mcmeta
++++ b/resource-pack/pack.mcmeta
+@@ -1,6 +1,6 @@
+ {
+   "pack": {
+     "pack_format": 46,
+-    "description": "StrobeLights 0.10.40 - OptiFine atlas compatible RGB - Paper 1.21.4"
++    "description": "StrobeLights 0.10.41 - OptiFine RGB and per-pack readiness - Paper 1.21.4"
+   }
+ }
+--- a/resource-pack/assets/strobelights/strobelights-integration.json
++++ b/resource-pack/assets/strobelights/strobelights-integration.json
+@@ -1,5 +1,5 @@
+ {
+-  "version": "0.10.40",
++  "version": "0.10.41",
+   "stable_source_optifine_atlas": true,
+   "stable_source_protocol": "slots3x3_depth_v1",
+   "render_pipeline": "light_painter_rgb",
