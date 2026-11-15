@@ -4,7 +4,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>es.astralicastudio</groupId>
     <artifactId>xmaslights</artifactId>
-    <version>2.9.1</version>
+    <version>2.9.2</version>
     <name>XmasLights</name>
     <description>Decorative lights for Paper 1.21.4-1.21.11 and 26.x with version-specific packs.</description>
     <properties>

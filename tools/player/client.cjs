@@ -6,7 +6,8 @@ const projections = new Set(); let metadataPackets = 0; let textDisplays = 0; le
 const client = mc.createClient({ host: '127.0.0.1', port: Number(process.argv[2]), username: 'XLSourceProbe', auth: 'offline', version });
 client.on('position', p => {
   client.write('teleport_confirm', { teleportId: p.teleportId });
-  client.write('position', { x:p.x, y:p.y, z:p.z, flags:{onGround:false,hasHorizontalCollision:false} });
+  // The fixture owns movement. Teleports can be relative after translation;
+  // echoing their raw coordinates as absolute movement can disconnect the probe.
 });
 client.on('chunk_batch_finished', () => client.write('chunk_batch_received', {chunksPerTick:16}));
 client.on('spawn_entity', p => {

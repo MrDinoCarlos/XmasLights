@@ -26,8 +26,23 @@ class NativeRendererAndStraightTest {
         player.teleport(new Location(world,2,74,2));
     }
     @AfterEach void stop() { PluginTest.stopServer(); }
-    @SuppressWarnings("deprecation") private StrobeHostFixture host(String version) throws Exception {
+    private StrobeHostFixture host(String version) throws Exception { return host(version, true); }
+    @SuppressWarnings("deprecation") private StrobeHostFixture host(String version, boolean compatible) throws Exception {
         StrobeHostFixture.embeddedPack=StrobeLightsTest.pack();
+        if (!compatible) {
+            // Simulate an incompatible pack, not merely a different release number.
+            // The real 0.10.37 pack did not advertise the stable source ABI.
+            var bytes = new java.io.ByteArrayOutputStream();
+            try (var input = new java.util.zip.ZipInputStream(new java.io.ByteArrayInputStream(StrobeHostFixture.embeddedPack));
+                 var output = new java.util.zip.ZipOutputStream(bytes)) {
+                for (var entry = input.getNextEntry(); entry != null; entry = input.getNextEntry()) {
+                    if (entry.getName().endsWith("strobelights-integration.json")) continue;
+                    output.putNextEntry(new java.util.zip.ZipEntry(entry.getName()));
+                    output.write(input.readAllBytes()); output.closeEntry();
+                }
+            }
+            StrobeHostFixture.embeddedPack = bytes.toByteArray();
+        }
         return MockBukkit.loadWith(StrobeHostFixture.class,new PluginDescriptionFile("StrobeLights",version,StrobeHostFixture.class.getName()));
     }
     private LightString create(String type,double start,double length,double z,UUID chain) {
@@ -75,12 +90,12 @@ class NativeRendererAndStraightTest {
         server.addPlayer().teleport(player.getLocation()); ticks(); noNative(string);
         host.state.ready=true; ticks(); noNative(string); assertTrue(carriers()>0);
     }
-    @Test void anUnsupportedHostDoesNotSilentlyReplaceRgbWithWhiteLight() throws Exception {
-        host("99.0.0"); var string=create(); ticks(); noNative(string); assertEquals(0,carriers());
+    @Test void aHostWithoutTheCarrierAbiDoesNotSilentlyReplaceRgbWithWhiteLight() throws Exception {
+        host("99.0.0", false); var string=create(); ticks(); noNative(string); assertEquals(0,carriers());
     }
     @Test void theInstalled037HostRemovesOldWhiteLightsWithoutChangingTheGeometry() throws Exception {
         var string=create(); ticks(); nativeLevel(string,12); var ids=geometry(string);
-        host("0.10.37"); ticks(); noNative(string); assertEquals(0,carriers()); assertEquals(ids,geometry(string));
+        host("0.10.37", false); ticks(); noNative(string); assertEquals(0,carriers()); assertEquals(ids,geometry(string));
         plugin.manager().saveData();
         assertTrue(SafeYaml.load(plugin.getDataFolder().toPath().resolve("lights.yml")).getStringList("owned-light-blocks").isEmpty());
     }

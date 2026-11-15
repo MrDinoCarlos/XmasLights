@@ -147,8 +147,8 @@ strobelights:
     # Maximum new/expired probes per RGB update (1..64), shared by all viewers.
     refresh-ticks: 20
     probes-per-update: 64
-  # Leave false until a new StrobeLights version has passed compatibility tests.
-  # Even when true, the installed carrier model contract is checked first.
+  # Deprecated compatibility setting, retained for existing configurations.
+  # The installed RGB carrier protocol is always verified, independently of patch version.
   allow-untested-version: false
 
 # DECORATIVE MODEL PACK --------------------------------------------------

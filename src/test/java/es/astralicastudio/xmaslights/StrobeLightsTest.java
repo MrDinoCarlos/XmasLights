@@ -63,9 +63,20 @@ class StrobeLightsTest {
         assertEquals(0xA12575, StrobeProtocol.encode(0x336699,12,.5));
         assertEquals(0xA30005, StrobeProtocol.encode(0xFFFFFF,0,1));
     }
-    @Test @SuppressWarnings("deprecation") void acceptsOptifineFixedHostWithoutAnUntestedVersionOverride() throws Exception {
+    @Test @SuppressWarnings("deprecation") void acceptsCurrentHostWithoutAnUntestedVersionOverride() throws Exception {
         StrobeHostFixture.embeddedPack = pack();
-        host = MockBukkit.loadWith(StrobeHostFixture.class, new PluginDescriptionFile("StrobeLights", "0.10.41", StrobeHostFixture.class.getName()));
+        host = MockBukkit.loadWith(StrobeHostFixture.class, new PluginDescriptionFile("StrobeLights", "0.10.43", StrobeHostFixture.class.getName()));
+        var player = server.addPlayer(); player.teleport(new Location(server.getWorld("world"), 2, 70, 2));
+        try (var bridge = bridge(4, 8)) {
+            bridge.sync(List.of(source(0, 3, 12)));
+            assertEquals(1, server.getWorld("world").getEntitiesByClass(ItemDisplay.class).size());
+            assertEquals(0, host.protocolCalls);
+            assertEquals(0, host.managerCalls);
+        }
+    }
+    @Test @SuppressWarnings("deprecation") void acceptsFuturePatchOnlyWhenItsCarrierAbiMatches() throws Exception {
+        StrobeHostFixture.embeddedPack = pack();
+        host = MockBukkit.loadWith(StrobeHostFixture.class, new PluginDescriptionFile("StrobeLights", "0.10.99", StrobeHostFixture.class.getName()));
         var player = server.addPlayer(); player.teleport(new Location(server.getWorld("world"), 2, 70, 2));
         try (var bridge = bridge(4, 8)) {
             bridge.sync(List.of(source(0, 3, 12)));

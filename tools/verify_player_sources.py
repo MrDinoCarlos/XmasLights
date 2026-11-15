@@ -4,7 +4,7 @@ import argparse, json, os, shutil, socket, subprocess, zipfile
 import branch_release as branches
 import verify_matrix as matrix
 
-parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--work-name',default='player-source-probe'); parser.add_argument('--minecraft',choices=list(matrix.TARGETS),default='1.21.4'); parser.add_argument('--strobe-jar',type=Path,default=matrix.ROOT/'dist/StrobeLights-0.10.41+mc.v.1.21.4.jar'); options=parser.parse_args()
+parser=argparse.ArgumentParser(description=__doc__); parser.add_argument('--work-name',default='player-source-probe'); parser.add_argument('--minecraft',choices=list(matrix.TARGETS),default='1.21.4'); parser.add_argument('--strobe-jar',type=Path,default=matrix.ROOT/'dist/StrobeLights-0.10.41+mc.v.1.21.4.jar'); parser.add_argument("--client-version", help="Optional protocol bot version; never changes the server or shader ABI"); parser.add_argument("--test-plugin", type=Path, action="append", default=[], help="Additional plugins for this isolated probe only"); options=parser.parse_args()
 work=matrix.ROOT/'.tools'/options.work_name
 if work.resolve().parent != (matrix.ROOT/'.tools').resolve(): raise SystemExit('work-name must be a directory name inside .tools')
 if work.exists(): raise SystemExit('Keep previous evidence; choose a fresh probe directory.')
@@ -14,12 +14,14 @@ for folder in ('cache','libraries','versions'): shutil.copytree(cache/folder,wor
 for name in ('paper.jar','eula.txt'): shutil.copyfile(cache/name,work/name)
 with socket.socket() as sock:
     sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]
-(work/'server.properties').write_text(f'server-ip=127.0.0.1\nserver-port={port}\nonline-mode=false\nlevel-name=probe\nlevel-type=minecraft:flat\ngenerate-structures=false\nallow-nether=false\nview-distance=3\nsimulation-distance=2\n')
+(work/'server.properties').write_text(f'server-ip=127.0.0.1\nserver-port={port}\nonline-mode=false\nwhite-list=false\nenforce-secure-profile=false\nlevel-name=probe\nlevel-type=minecraft:flat\ngenerate-structures=false\nallow-nether=false\nview-distance=3\nsimulation-distance=2\n')
 (work/'bukkit.yml').write_text('settings:\n  allow-end: false\n')
 data=work/'plugins/XmasLights'; data.mkdir(parents=True)
 (data/'config.yml').write_text('updates:\n  enabled: false\nmodel-pack:\n  enabled: false\n  embedded:\n    enabled: false\n')
 artifact=branches.package(branches.branch_for(options.minecraft)); shutil.copyfile(artifact,work/'plugins'/artifact.name)
 shutil.copyfile(options.strobe_jar,work/'plugins'/options.strobe_jar.name)
+for test_plugin in options.test_plugin: shutil.copyfile(test_plugin, work/'plugins'/test_plugin.name)
+(work/'client-transport.json').write_text(json.dumps({'server':options.minecraft,'protocol_client':options.client_version or options.minecraft,'test_plugins':[p.name for p in options.test_plugin]},indent=2))
 strobe_data=work/'plugins/StrobeLights'; strobe_data.mkdir()
 with socket.socket() as sock:
     sock.bind(('127.0.0.1',0)); pack_port=sock.getsockname()[1]
@@ -41,7 +43,7 @@ with (work/'server.log').open('w',encoding='utf-8') as log, (work/'client.log').
         for line in server.stdout:
             log.write(line); log.flush()
             if 'Done (' in line and client is None:
-                client=subprocess.Popen(['node',str(matrix.ROOT/'tools/player/client.cjs'),str(port),str(work/'client-packets.json'),options.minecraft],cwd=matrix.ROOT,stdout=clientlog,stderr=subprocess.STDOUT,creationflags=subprocess.CREATE_NO_WINDOW)
+                client=subprocess.Popen(['node',str(matrix.ROOT/'tools/player/client.cjs'),str(port),str(work/'client-packets.json'),options.client_version or options.minecraft],cwd=matrix.ROOT,stdout=clientlog,stderr=subprocess.STDOUT,creationflags=subprocess.CREATE_NO_WINDOW)
         code=server.wait()
     finally:
         timer.cancel()

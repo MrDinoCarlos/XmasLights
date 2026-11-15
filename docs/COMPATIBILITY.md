@@ -1,4 +1,14 @@
-# Compatibilidad de XmasLights 2.9.1
+# Compatibilidad de XmasLights 2.9.2
+
+2.9.2 conserva las familias y sus packs. Cambia la negociación RGB para aceptar
+un StrobeLights compatible por su contrato, sin una lista fija de versiones.
+**Para 26.3 usar StrobeLights 0.10.43 y XmasLights 2.9.2**, actualizando ambos JAR
+y aceptando el pack nuevo. Las 232 pruebas Java y la prueba conjunta de Paper
+26.3 están descritas en [la entrega 2.9.2](RELEASE_2_9_2.md).
+
+La matriz completa de doce servidores descrita a continuación es evidencia de
+2.9.1; no se ha repetido íntegramente para 2.9.2. La prueba conjunta nueva verifica
+el pack y las entidades en Paper 26.3; los shaders se ejecutan aparte en GPU.
 
 Se distribuyen cuatro JAR por rama: 1.21.X, 26.1.X, 26.2.X y 26.3.X.
 Cada uno incluye los packs de todos sus parches comprobados. La implementación usa la API
@@ -68,7 +78,8 @@ El RGB requiere un StrobeLights y un pack compatibles con cada cliente. La prueb
 de la API de XmasLights en doce versiones no demuestra que un pack StrobeLights
 de 1.21.4 sirva para las otras once. No se extrapola ese ensayo gráfico.
 
-El StrobeLights instalado documenta Fabulous y shaderpacks externos desactivados.
+Las versiones anteriores a 26.3 usan Fabulous y shaderpacks externos desactivados.
+El renderer 26.3 utiliza el efecto permanente `end_of_frame`.
 Los packs que sustituyan ese pipeline necesitan soporte propio. Se explicita esa
 limitación; no se vuelve a suplir con otro renderer. La aceptación visual en la
 instalación Minecraft del usuario sigue siendo distinta de los ensayos GPU.

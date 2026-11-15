@@ -5,7 +5,7 @@
 # Missing keys are added automatically; existing text is preserved.
 # Reload with /xl reload. Command IDs (give, all, none, modes) stay unchanged.
 
-"language-version": 9
+"language-version": 10
 "pack":
   "disabled": "&eThis server uses vanilla light models. No XmasLights resource pack is needed."
   "models-required": "&eThese lights require the XmasLights resource pack. Use /xl pack and accept it before placing them."
@@ -18,7 +18,7 @@
   "preparing": "&eThe model pack is being prepared by Nexo. It will be sent automatically when ready."
 "log":
   "strobe-rgb-blocked": "StrobeLights RGB is unavailable; XmasLights white LIGHT blocks stay off while StrobeLights is enabled. Update StrobeLights and its resource pack. Details: {error}"
-  "strobe-pack-required": "Stable XmasLights RGB requires StrobeLights 0.10.38 and its updated resource pack. TRP is optional and its graphics profile does not control XmasLights."
+  "strobe-pack-required": "RGB requires a compatible StrobeLights carrier pack. Minecraft 26.3 requires StrobeLights 0.10.43+. TRP is optional."
   "entity-budget": "Display budget {limit} reached: {count} segments were hidden and remain saved. Free capacity or adjust limits before showing them again."
   "strobe-connected": "StrobeLights {version}: using its RGB renderer for XmasLights bulbs; no strobes are registered."
   "strobe-unavailable": "StrobeLights RGB integration is unavailable; native illumination is retained. Details: {error}"

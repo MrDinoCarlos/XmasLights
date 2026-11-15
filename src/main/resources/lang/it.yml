@@ -5,7 +5,7 @@
 # Le nuove chiavi vengono aggiunte senza sostituire i tuoi testi.
 # Ricarica con /xl reload. Gli identificatori dei comandi restano invariati.
 
-"language-version": 9
+"language-version": 10
 "pack":
   "disabled": "&eQuesto server usa modelli vanilla. Non serve un pacchetto di risorse XmasLights."
   "models-required": "&eQueste luci richiedono il pacchetto di risorse XmasLights. Usa /xl pack e accettalo prima di posizionarle."
@@ -18,7 +18,7 @@
   "preparing": "&eNexo sta preparando il pacchetto di modelli. Verrà inviato automaticamente appena pronto."
 "log":
   "strobe-rgb-blocked": "Il rendering RGB di StrobeLights non è disponibile; i blocchi LIGHT bianchi di XmasLights restano spenti mentre StrobeLights è attivo. Aggiorna StrobeLights e il suo pacchetto risorse. Dettagli: {error}"
-  "strobe-pack-required": "Il RGB stabile di XmasLights richiede StrobeLights 0.10.38 e il suo pacchetto aggiornato. TRP è facoltativo e il suo profilo grafico non controlla XmasLights."
+  "strobe-pack-required": "RGB richiede un pacchetto StrobeLights con protocollo compatibile. Minecraft 26.3 richiede StrobeLights 0.10.43 o successivo. TRP è facoltativo."
   "entity-budget": "Raggiunto il limite di {limit} display: {count} segmenti sono stati nascosti e restano salvati. Libera capacità o modifica i limiti prima di mostrarli di nuovo."
   "strobe-connected": "StrobeLights {version}: utilizzo del suo rendering RGB per le lampadine XmasLights, senza registrare strobi."
   "strobe-unavailable": "Integrazione RGB StrobeLights non disponibile; viene mantenuta l’illuminazione normale. Dettagli: {error}"

@@ -43,7 +43,7 @@ final class StrobeLightsBridge implements AutoCloseable {
     private Plugin host, rejectedHost;
     private Object packService;
     private Method resourcePack, packLoaded;
-    private boolean enabled, allowUntested;
+    private boolean enabled;
     private int maxPerPlayer, maxTotal, updateTicks, elapsed;
     private int displayBudget = Integer.MAX_VALUE;
     private double range, power, sampleSpacing, impactRadius, distanceFade, hysteresis;
@@ -54,7 +54,7 @@ final class StrobeLightsBridge implements AutoCloseable {
     StrobeLightsBridge(XmasLightsPlugin plugin) { this.plugin = plugin; markerKey = new NamespacedKey(plugin, "rgb_carrier"); }
     void configure(YamlConfiguration config) {
         close(); rejectedHost = null;
-        enabled = config.getBoolean("strobelights.enabled"); allowUntested = config.getBoolean("strobelights.allow-untested-version");
+        enabled = config.getBoolean("strobelights.enabled");
         maxPerPlayer = config.getInt("strobelights.max-sources-per-player"); maxTotal = config.getInt("strobelights.max-carriers-total");
         range = config.getDouble("strobelights.view-distance-chunks") * 16;
         power = config.getDouble("strobelights.intensity-scale"); sampleSpacing = config.getDouble("strobelights.source-spacing");
@@ -103,7 +103,7 @@ final class StrobeLightsBridge implements AutoCloseable {
         close();
         String version = candidate.getPluginMeta().getVersion().split("\\+")[0];
         try {
-            if (!allowUntested && !Set.of("0.10.38", "0.10.39", "0.10.40", "0.10.41").contains(version)) throw new IllegalArgumentException(plugin.messages().plain("log.strobe-pack-required"));
+            // Compatibility is the advertised carrier ABI, not a hardcoded patch-version list.
             // Validate StrobeLights' own carrier contract. Its legacy capability
             // method also checks TRP's renderer and must not veto XmasLights RGB.
             verifyCarrier(candidate, Bukkit.getMinecraftVersion());
@@ -144,7 +144,8 @@ final class StrobeLightsBridge implements AutoCloseable {
                 if (model && stable) return;
             }
         }
-        throw new IllegalArgumentException("StrobeLights RGB carrier contract");
+        throw new IllegalArgumentException("StrobeLights RGB carrier contract missing for Minecraft " + minecraft
+                + (minecraft.equals("26.3") ? " (requires StrobeLights 0.10.43+)" : ""));
     }
 
     private boolean ready(Player player) {

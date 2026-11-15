@@ -1,4 +1,10 @@
-# XmasLights 2.9.1
+# XmasLights 2.9.2
+
+Esta versión corrige el rechazo de StrobeLights actualizado. El bridge comprueba
+el contrato del pack real en lugar de limitarse a una lista de versiones del
+plugin. Para RGB en **26.3 se necesitan StrobeLights 0.10.43 y su nuevo pack**;
+hay que actualizar ambos JAR. El ajuste `allow-untested-version` queda obsoleto
+y no permite saltarse la comprobación del protocolo.
 
 Esta versión **retira el renderer alternativo introducido en 2.9.0**. La iluminación
 RGB vuelve exclusivamente al render 3D de **StrobeLights**, con su modelo técnico
@@ -6,19 +12,21 @@ RGB vuelve exclusivamente al render 3D de **StrobeLights**, con su modelo técni
 ni TextDisplay sobre suelo o paredes. Se conserva la corrección de chunks enviados
 que evitó que todas las fuentes quedasen descartadas con `sources=0` en Paper.
 
-La entrega está en `dist/2.9.1/`, con **un JAR por rama**:
+La entrega está en `dist/2.9.2/`, con **un JAR por rama**:
 
-| JAR | Parches de Paper comprobados |
+| JAR | Parches de Paper mantenidos |
 | --- | --- |
-| `XmasLights-2.9.1+mc.v.1.21.X.jar` | 1.21.4–1.21.11 |
-| `XmasLights-2.9.1+mc.v.26.1.X.jar` | 26.1.1 y 26.1.2 |
-| `XmasLights-2.9.1+mc.v.26.2.X.jar` | 26.2 |
-| `XmasLights-2.9.1+mc.v.26.3.X.jar` | 26.3 |
+| `XmasLights-2.9.2+mc.v.1.21.X.jar` | 1.21.4–1.21.11 |
+| `XmasLights-2.9.2+mc.v.26.1.X.jar` | 26.1.1 y 26.1.2 |
+| `XmasLights-2.9.2+mc.v.26.2.X.jar` | 26.2 |
+| `XmasLights-2.9.2+mc.v.26.3.X.jar` | 26.3 |
 
-La matriz de Paper comprueba el plugin, sus diseños y su ciclo de vida. El RGB
-requiere además una versión y un pack de StrobeLights compatibles con el cliente;
-la prueba de integración real y GPU de esta entrega utiliza StrobeLights 0.10.41
-para Minecraft 1.21.4. No se extrapola ese resultado gráfico a otros packs.
+La matriz completa de Paper, diseños y ciclo de vida corresponde a 2.9.1.
+Para 2.9.2 pasan 232 pruebas Java y una prueba conjunta aislada con Paper 26.3
+y StrobeLights 0.10.43: pack verificado, fuentes sobre suelo y pared y cero
+TextDisplay. StrobeLights comprueba por separado los shaders 26.3 con 38 casos
+GPU. El RGB requiere el pack compatible con el cliente; los resultados gráficos
+de 1.21.4 no se extrapolan a otros packs. Ver [detalle y límites](docs/RELEASE_2_9_2.md).
 
 ## Actualizar
 
@@ -40,14 +48,16 @@ Se mantienen los avisos de Modrinth en consola y para administradores al entrar,
 la limpieza de cables/bombillas/LIGHT al desactivar el plugin y los 51 diseños.
 Los packs decorativos solo incluyen modelos y texturas; el RGB pertenece a StrobeLights.
 
-**Requisito del StrobeLights instalado:** su RGB funciona con el pack correcto y
-Fabulous. OptiFine puede usarse con ese pipeline y los shaderpacks externos apagados.
+**Requisito del StrobeLights instalado:** su RGB funciona con el pack correcto;
+los pipelines anteriores a 26.3 usan Fabulous. El renderer de 26.3 utiliza el
+efecto permanente `end_of_frame`. OptiFine puede usarse con el pipeline compatible
+y los shaderpacks externos apagados.
 Un shaderpack que sustituya ese pipeline necesita soporte dentro del propio
 StrobeLights o de ese shaderpack; esta versión no oculta esa limitación con una
 superposición de color. Sin StrobeLights queda únicamente la alternativa vanilla
 configurada con `light-blocks`.
 
-[Detalle y pruebas](docs/RELEASE_2_9_1.md) · [Compatibilidad](docs/COMPATIBILITY.md)
+[Detalle y pruebas](docs/RELEASE_2_9_2.md) · [Compatibilidad](docs/COMPATIBILITY.md)
 
 Compilación: `./build.ps1` (Java 21). Empaquetado de cuatro ramas:
 `python tools/verify_matrix.py --package-only`.
