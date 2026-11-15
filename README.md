@@ -102,7 +102,7 @@ realizadas de las versiones pendientes. No hay código NMS ni reflexión sobre M
    o `PATH`, ejecuta las pruebas y genera `target/XmasLights-2.8.8.jar`.
    Puedes indicar otro JDK con `./build.ps1 -JdkHome "C:\ruta\jdk-21"`.
 4. Alternativa con `JAVA_HOME` apuntando a JDK 21: `./mvnw.cmd clean verify`.
-   En Linux/macOS: `sh mvnw clean verify`.
+   En Linux/macOS: `sh ./mvnw clean verify`.
 
 Maven 3.9.9 se descarga mediante el wrapper con comprobación SHA-256. No hace falta
 instalar Maven globalmente. La API de Paper y las herramientas de pruebas no se incluyen

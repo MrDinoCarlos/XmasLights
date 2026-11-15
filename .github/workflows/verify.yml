@@ -16,7 +16,7 @@ jobs:
           java-version: '21'
           cache: maven
       - name: Compile, test and package
-        run: sh mvnw -B -ntp clean verify
+        run: sh ./mvnw -B -ntp clean verify
       - uses: actions/setup-python@v5
         with:
           python-version: '3.13'
